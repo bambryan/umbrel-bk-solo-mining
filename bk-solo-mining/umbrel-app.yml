@@ -1,0 +1,35 @@
+manifestVersion: 1
+id: bk-solo-mining
+category: bitcoin
+name: BK Solo Mining
+version: "0.1.0"
+tagline: Solo BCH mining — BCHN + ckpool + dashboard
+icon: https://raw.githubusercontent.com/bambryan/umbrel-bk-solo-mining/main/bk-solo-mining/icon.svg
+description: >-
+  Full Bitcoin Cash node (BCHN) plus ckpool configured for solo mining,
+  with a Next.js dashboard that shows pool hashrate, worker breakdown,
+  network difficulty, and lets you change the coinbase signature, restart
+  ckpool, and tail logs without ssh.
+
+
+  Coinbase rewards for solved blocks are paid directly to the BCH address
+  configured in ckpool.conf — no pool fees.
+
+
+  Stratum is exposed on TCP 4567. Point miners at `stratum+tcp://<your-umbrel-ip>:4567`
+  with any BCH address as the username.
+releaseNotes: >-
+  Initial release. Forked from a previous third-party Umbrel community app
+  so config tunings (dbcache, rpcworkqueue, rpcthreads) can no longer be
+  silently overwritten by an upstream update.
+developer: Bryan Kilgore
+website: https://github.com/bambryan/umbrel-bk-solo-mining
+submitter: Bryan Kilgore
+submission: https://github.com/bambryan/umbrel-bk-solo-mining
+repo: https://github.com/bambryan/umbrel-bk-solo-mining
+support: https://github.com/bambryan/umbrel-bk-solo-mining/issues
+port: 3070
+gallery: []
+path: ""
+defaultUsername: ""
+defaultPassword: ""

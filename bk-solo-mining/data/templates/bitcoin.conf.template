@@ -1,0 +1,24 @@
+server=1
+txindex=0
+
+# Pruning: keep ~550 MB of recent blocks. Mining only needs UTXO state.
+prune=550
+
+# Ports
+port=${APP_BCH_P2P_PORT}
+rpcport=${APP_BCH_RPC_PORT}
+
+# RPC (not published to the host; internal apps only)
+rpcuser=bch
+rpcpassword=${APP_PASSWORD}
+rpcbind=0.0.0.0
+rpcallowip=127.0.0.1/32
+rpcallowip=${APPS_SUBNET}
+rpcallowip=10.0.0.0/8
+rpcallowip=172.16.0.0/12
+rpcallowip=192.168.0.0/16
+
+# ZMQ — ckpool subscribes here for instant new-block notifications
+zmqpubhashblock=tcp://0.0.0.0:${APP_BCH_ZMQ_HASHBLOCK_PORT}
+
+maxconnections=256

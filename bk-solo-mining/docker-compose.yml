@@ -1,0 +1,138 @@
+version: "3.7"
+
+services:
+  app_proxy:
+    environment:
+      APP_HOST: bk-solo-mining-dashboard
+      APP_PORT: 3000
+      JWT_SECRET: ${JWT_SECRET}
+    networks:
+      - umbrel_main_network
+    container_name: bk-solo-mining_app_proxy_1
+
+  # One-shot service that renders the config templates into the real config
+  # files on first boot. Idempotent: only writes if the destination is missing.
+  init:
+    image: alpine:3.22.1
+    user: "0:0"
+    environment:
+      APPS_SUBNET: ${NETWORK_IP}/16
+      APP_PASSWORD: ${APP_PASSWORD}
+      APP_BCH_P2P_PORT: "28333"
+      APP_BCH_RPC_PORT: "28332"
+      APP_BCH_ZMQ_HASHBLOCK_PORT: "28334"
+    volumes:
+      - ${APP_DATA_DIR}/data:/data
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        apk add --no-cache envsubst >/dev/null
+        mkdir -p /data/bchn /data/ckpool/config /data/ckpool/www/pool /data/ckpool/www/users /data/templates
+
+        # Templates are baked into the image-data dir on install via APP_DATA_DIR
+        # On first boot we materialize them into the live config locations.
+        if [ ! -f /data/bchn/bitcoin.conf ]; then
+          envsubst < /data/templates/bitcoin.conf.template > /data/bchn/bitcoin.conf
+        fi
+        if [ ! -f /data/ckpool/config/ckpool.conf ]; then
+          envsubst < /data/templates/ckpool.conf.template > /data/ckpool/config/ckpool.conf
+        fi
+
+        # Ownership: bchn + ckpool run as 1000:1000
+        chown -R 1000:1000 /data/bchn /data/ckpool
+
+        echo "[init] ready"
+
+  bchn:
+    image: ghcr.io/willitmod/bitcoin-cash-node:v29.0.0-wm3
+    container_name: bk-solo-mining_bchn_1
+    user: "1000:1000"
+    restart: unless-stopped
+    stop_grace_period: 15m30s
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    ports:
+      - "28333:28333/tcp"
+    volumes:
+      - ${APP_DATA_DIR}/data/bchn:/data
+      - ${APP_DATA_DIR}/data/templates/bchn-entrypoint.sh:/bchn-entrypoint.sh:ro
+    entrypoint:
+      - /bin/sh
+      - /bchn-entrypoint.sh
+    healthcheck:
+      test: ["CMD-SHELL", "bitcoin-cli -datadir=/data getblockchaininfo >/dev/null 2>&1"]
+      interval: 30s
+      timeout: 10s
+      retries: 20
+      start_period: 2m
+    networks:
+      - default
+
+  ckpool:
+    image: ghcr.io/willitmod/wim-solo-ckpool:0.8.3-rc1-590fb2a
+    container_name: bk-solo-mining_ckpool_1
+    user: "1000:1000"
+    restart: on-failure
+    stop_grace_period: 30s
+    depends_on:
+      bchn:
+        condition: service_healthy
+    ports:
+      - "4567:3333/tcp"
+    volumes:
+      - ${APP_DATA_DIR}/data/ckpool/config:/config:ro
+      - ${APP_DATA_DIR}/data/ckpool/www:/www
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - |
+        rm -f /tmp/ckpool/*.pid 2>/dev/null || true
+        if command -v ckpool >/dev/null 2>&1; then
+          exec ckpool -k -B -L -c /config/ckpool.conf
+        elif [ -x /bin/ckpool ]; then
+          exec /bin/ckpool -k -B -L -c /config/ckpool.conf
+        elif [ -x /usr/bin/ckpool ]; then
+          exec /usr/bin/ckpool -k -B -L -c /config/ckpool.conf
+        else
+          echo "ckpool binary not found in image"; exit 1
+        fi
+    networks:
+      - default
+
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    image: bk-solo-mining-dashboard:0.1.0
+    container_name: bk-solo-mining-dashboard
+    restart: unless-stopped
+    depends_on:
+      - bchn
+      - ckpool
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      BCH_RPC_HOST: bchn
+      BCH_RPC_PORT: "28332"
+      BCH_RPC_USER: bch
+      BCH_RPC_PASS: ${APP_PASSWORD}
+      CKPOOL_WWW_DIR: /ckpool-www
+      CKPOOL_CONFIG_PATH: /ckpool-config/ckpool.conf
+      CKPOOL_CONTAINER: bk-solo-mining_ckpool_1
+      BCHN_CONTAINER: bk-solo-mining_bchn_1
+    volumes:
+      - ${APP_DATA_DIR}/data/ckpool/www:/ckpool-www:ro
+      - ${APP_DATA_DIR}/data/ckpool/config:/ckpool-config
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - default
+      - umbrel_main_network
+
+networks:
+  default:
+    name: bk-solo-mining_default
+  umbrel_main_network:
+    external: true
+    name: umbrel_main_network

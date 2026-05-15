@@ -1,0 +1,20 @@
+{
+  "btcaddress": "CHANGE_ME_TO_YOUR_BCH_ADDRESS",
+  "btcd": [
+    {
+      "auth": "bch",
+      "notify": true,
+      "pass": "${APP_PASSWORD}",
+      "url": "bchn:${APP_BCH_RPC_PORT}"
+    }
+  ],
+  "btcsig": "/solo mined by BK/",
+  "logdir": "/www",
+  "maxdiff": 0,
+  "mindiff": 1024,
+  "startdiff": 65536,
+  "userdir": "/www/users",
+  "validated": true,
+  "webdir": "/www/pool",
+  "zmqblock": "tcp://bchn:${APP_BCH_ZMQ_HASHBLOCK_PORT}"
+}
