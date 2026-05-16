@@ -97,6 +97,12 @@ services:
     pull_policy: never
     container_name: bk-mining-solo-mining-dashboard
     restart: unless-stopped
+    # The dashboard runs as uid 1001 (nextjs user from its Dockerfile). To
+    # call the Docker API via /var/run/docker.sock for log tailing + container
+    # restarts, that user must be in a group with the SAME gid as the host's
+    # `docker` group (987 on this Umbrel — see `getent group docker`).
+    group_add:
+      - "987"
     depends_on:
       - bchn
       - ckpool
