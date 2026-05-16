@@ -41,10 +41,11 @@ services:
           envsubst < /data/templates/ckpool.conf.template > /data/ckpool/config/ckpool.conf
         fi
 
-        chown -R 1000:1000 /data/bchn /data/ckpool
-        # Dashboard runs as nextjs uid 1001 (set in its Dockerfile), so the
-        # snapshots dir it writes to must be owned by that uid.
-        chown -R 1001:1001 /data/snapshots
+        chown -R 1000:1000 /data/bchn /data/ckpool/www
+        # Dashboard runs as nextjs uid 1001 and writes ckpool.conf + sentinel
+        # files in /data/ckpool/config. ckpool runs as 1000 but only READS
+        # from /config, so 1001-owned + mode 644 works for both.
+        chown -R 1001:1001 /data/ckpool/config /data/snapshots
         echo "[init] ready"
 
   bchn:
