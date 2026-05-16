@@ -32,8 +32,12 @@ services:
       - -ec
       - |
         apk add --no-cache envsubst >/dev/null
-        mkdir -p /data/bchn /data/ckpool/config /data/ckpool/www/pool /data/ckpool/www/users /data/templates /data/snapshots
+        mkdir -p \
+          /data/bchn /data/ckpool/config /data/ckpool/www/pool /data/ckpool/www/users \
+          /data/btc/bitcoind /data/btc/ckpool/config /data/btc/ckpool/www/pool /data/btc/ckpool/www/users \
+          /data/templates /data/snapshots
 
+        # BCH templates → live config (idempotent)
         if [ ! -f /data/bchn/bitcoin.conf ]; then
           envsubst < /data/templates/bitcoin.conf.template > /data/bchn/bitcoin.conf
         fi
@@ -41,11 +45,23 @@ services:
           envsubst < /data/templates/ckpool.conf.template > /data/ckpool/config/ckpool.conf
         fi
 
-        chown -R 1000:1000 /data/bchn /data/ckpool/www
-        # Dashboard runs as nextjs uid 1001 and writes ckpool.conf + sentinel
-        # files in /data/ckpool/config. ckpool runs as 1000 but only READS
-        # from /config, so 1001-owned + mode 644 works for both.
-        chown -R 1001:1001 /data/ckpool/config /data/snapshots
+        # BTC templates → live config (idempotent). For a fresh install these
+        # produce a CHANGE_ME btcaddress; for the AxeBTC migration the files
+        # are pre-populated so the templates are skipped.
+        if [ ! -f /data/btc/bitcoind/bitcoin.conf ]; then
+          envsubst < /data/templates/btc-bitcoin.conf.template > /data/btc/bitcoind/bitcoin.conf
+        fi
+        if [ ! -f /data/btc/ckpool/config/ckpool.conf ]; then
+          envsubst < /data/templates/btc-ckpool.conf.template > /data/btc/ckpool/config/ckpool.conf
+        fi
+
+        # Node-process dirs owned by 1000:1000 (bchn + bitcoind containers run
+        # as that uid). Ckpool stats dirs likewise — ckpool writes there.
+        chown -R 1000:1000 /data/bchn /data/ckpool/www /data/btc/bitcoind /data/btc/ckpool/www
+        # Dashboard (nextjs uid 1001) writes ckpool.conf + sentinel files in
+        # /data/{,btc/}ckpool/config and the snapshots dir. ckpool runs as
+        # 1000 but only READS the config, so 1001-owned + mode 644 works.
+        chown -R 1001:1001 /data/ckpool/config /data/btc/ckpool/config /data/snapshots
         echo "[init] ready"
 
   bchn:
@@ -88,6 +104,49 @@ services:
       # the dashboard writes there. Mounted RW (dashboard chmod 644).
       - ${APP_DATA_DIR}/data/ckpool/config:/config
       - ${APP_DATA_DIR}/data/ckpool/www:/www
+      - ${APP_DATA_DIR}/data/templates/ckpool-entrypoint.sh:/ckpool-entrypoint.sh:ro
+    entrypoint:
+      - /bin/sh
+      - /ckpool-entrypoint.sh
+
+  btc-bitcoind:
+    # WillItMod's multi-impl image: switches between Bitcoin Core and Bitcoin
+    # Knots based on the `btc_core_choice` sentinel file in /data. Reusing
+    # their image so the existing chain data (migrated from AxeBTC) is
+    # binary-compatible without resync.
+    image: ghcr.io/willitmod/axebtc-bitcoind-switch:0.7.44
+    container_name: bk-mining-solo-mining_btc_bitcoind_1
+    user: "1000:1000"
+    restart: unless-stopped
+    stop_grace_period: 15m30s
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    ports:
+      - "8333:8333/tcp"
+    volumes:
+      - ${APP_DATA_DIR}/data/btc/bitcoind:/data
+    healthcheck:
+      test: ["CMD-SHELL", "bitcoin-cli -datadir=/data getblockchaininfo >/dev/null 2>&1"]
+      interval: 30s
+      timeout: 10s
+      retries: 20
+      start_period: 2m
+
+  btc-ckpool:
+    image: ghcr.io/willitmod/wim-solo-ckpool:0.8.3-rc1-590fb2a
+    container_name: bk-mining-solo-mining_btc_ckpool_1
+    user: "1000:1000"
+    restart: on-failure
+    stop_grace_period: 30s
+    depends_on:
+      btc-bitcoind:
+        condition: service_healthy
+    ports:
+      - "7890:3333/tcp"
+    volumes:
+      - ${APP_DATA_DIR}/data/btc/ckpool/config:/config
+      - ${APP_DATA_DIR}/data/btc/ckpool/www:/www
       - ${APP_DATA_DIR}/data/templates/ckpool-entrypoint.sh:/ckpool-entrypoint.sh:ro
     entrypoint:
       - /bin/sh
@@ -143,5 +202,7 @@ services:
     volumes:
       - ${APP_DATA_DIR}/data/ckpool/www:/ckpool-www:ro
       - ${APP_DATA_DIR}/data/ckpool/config:/ckpool-config
+      - ${APP_DATA_DIR}/data/btc/ckpool/www:/btc-ckpool-www:ro
+      - ${APP_DATA_DIR}/data/btc/ckpool/config:/btc-ckpool-config
       - ${APP_DATA_DIR}/data/snapshots:/snapshots
       - /var/run/docker.sock:/var/run/docker.sock

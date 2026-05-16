@@ -1,0 +1,20 @@
+{
+  "btcaddress": "CHANGE_ME_TO_YOUR_BTC_ADDRESS",
+  "btcd": [
+    {
+      "auth": "btc",
+      "notify": true,
+      "pass": "${APP_PASSWORD}",
+      "url": "btc-bitcoind:28332"
+    }
+  ],
+  "btcsig": "/solo mined by BK/",
+  "logdir": "/www",
+  "maxdiff": 8192,
+  "mindiff": 128,
+  "startdiff": 512,
+  "userdir": "/www/users",
+  "validated": true,
+  "webdir": "/www/pool",
+  "zmqblock": "tcp://btc-bitcoind:28335"
+}

@@ -1,0 +1,28 @@
+server=1
+txindex=0
+
+# Pruning: 550 MiB target keeps disk lean. Mining only needs UTXO state.
+prune=550
+
+# Network: mainnet (BTC has no testnet in our app)
+port=8333
+rpcport=28332
+
+# RPC (internal docker network only; not exposed to host)
+rpcuser=btc
+rpcpassword=${APP_PASSWORD}
+rpcbind=0.0.0.0
+rpcallowip=127.0.0.1/32
+rpcallowip=${APPS_SUBNET}
+rpcallowip=10.0.0.0/8
+rpcallowip=172.16.0.0/12
+rpcallowip=192.168.0.0/16
+
+# ZMQ — ckpool subscribes here for instant new-block notifications
+zmqpubhashblock=tcp://0.0.0.0:28335
+
+# Performance tuning (matches our BCH side)
+maxconnections=256
+dbcache=2048
+rpcworkqueue=64
+rpcthreads=8
