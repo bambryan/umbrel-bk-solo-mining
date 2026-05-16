@@ -110,10 +110,12 @@ services:
       - /ckpool-entrypoint.sh
 
   btc-bitcoind:
-    # WillItMod's multi-impl image: switches between Bitcoin Core and Bitcoin
-    # Knots based on the `btc_core_choice` sentinel file in /data. Reusing
-    # their image so the existing chain data (migrated from AxeBTC) is
-    # binary-compatible without resync.
+    # Reusing WillItMod's image because it bundles Bitcoin Core binaries
+    # compatible with the AxeBTC chain data we migrated. NOTE: this image's
+    # default CMD runs a Node.js orchestrator (`node dist/server.js`) — we
+    # override the entrypoint to run bitcoind directly, matching AxeBTC's
+    # own approach. The image's PATH includes bitcoind via the
+    # /opt/bitcoind/current symlink.
     image: ghcr.io/willitmod/axebtc-bitcoind-switch:0.7.44
     container_name: bk-mining-solo-mining_btc_bitcoind_1
     user: "1000:1000"
@@ -126,6 +128,10 @@ services:
       - "8333:8333/tcp"
     volumes:
       - ${APP_DATA_DIR}/data/btc/bitcoind:/data
+      - ${APP_DATA_DIR}/data/templates/btc-bitcoind-entrypoint.sh:/btc-bitcoind-entrypoint.sh:ro
+    entrypoint:
+      - /bin/sh
+      - /btc-bitcoind-entrypoint.sh
     healthcheck:
       test: ["CMD-SHELL", "bitcoin-cli -datadir=/data getblockchaininfo >/dev/null 2>&1"]
       interval: 30s
