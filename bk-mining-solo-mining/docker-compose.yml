@@ -3,12 +3,12 @@ version: "3.7"
 services:
   app_proxy:
     environment:
-      APP_HOST: bk-solo-mining-dashboard
+      APP_HOST: bk-mining-solo-mining-dashboard
       APP_PORT: 3000
       JWT_SECRET: ${JWT_SECRET}
     networks:
       - umbrel_main_network
-    container_name: bk-solo-mining_app_proxy_1
+    container_name: bk-mining-solo-mining_app_proxy_1
 
   # One-shot service that renders the config templates into the real config
   # files on first boot. Idempotent: only writes if the destination is missing.
@@ -46,7 +46,7 @@ services:
 
   bchn:
     image: ghcr.io/willitmod/bitcoin-cash-node:v29.0.0-wm3
-    container_name: bk-solo-mining_bchn_1
+    container_name: bk-mining-solo-mining_bchn_1
     user: "1000:1000"
     restart: unless-stopped
     stop_grace_period: 15m30s
@@ -72,7 +72,7 @@ services:
 
   ckpool:
     image: ghcr.io/willitmod/wim-solo-ckpool:0.8.3-rc1-590fb2a
-    container_name: bk-solo-mining_ckpool_1
+    container_name: bk-mining-solo-mining_ckpool_1
     user: "1000:1000"
     restart: on-failure
     stop_grace_period: 30s
@@ -105,8 +105,8 @@ services:
     build:
       context: ./dashboard
       dockerfile: Dockerfile
-    image: bk-solo-mining-dashboard:0.1.0
-    container_name: bk-solo-mining-dashboard
+    image: bk-mining-solo-mining-dashboard:0.1.0
+    container_name: bk-mining-solo-mining-dashboard
     restart: unless-stopped
     depends_on:
       - bchn
@@ -120,8 +120,8 @@ services:
       BCH_RPC_PASS: ${APP_PASSWORD}
       CKPOOL_WWW_DIR: /ckpool-www
       CKPOOL_CONFIG_PATH: /ckpool-config/ckpool.conf
-      CKPOOL_CONTAINER: bk-solo-mining_ckpool_1
-      BCHN_CONTAINER: bk-solo-mining_bchn_1
+      CKPOOL_CONTAINER: bk-mining-solo-mining_ckpool_1
+      BCHN_CONTAINER: bk-mining-solo-mining_bchn_1
     volumes:
       - ${APP_DATA_DIR}/data/ckpool/www:/ckpool-www:ro
       - ${APP_DATA_DIR}/data/ckpool/config:/ckpool-config
@@ -132,7 +132,7 @@ services:
 
 networks:
   default:
-    name: bk-solo-mining_default
+    name: bk-mining-solo-mining_default
   umbrel_main_network:
     external: true
     name: umbrel_main_network

@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { restartContainer } from "@/lib/docker";
 
 const MAP: Record<string, string> = {
-  ckpool: process.env.CKPOOL_CONTAINER || "bk-solo-mining_ckpool_1",
-  bchn: process.env.BCHN_CONTAINER || "bk-solo-mining_bchn_1",
+  ckpool: process.env.CKPOOL_CONTAINER || "bk-mining-solo-mining_ckpool_1",
+  bchn: process.env.BCHN_CONTAINER || "bk-mining-solo-mining_bchn_1",
 };
 
 export async function POST(req: Request) {

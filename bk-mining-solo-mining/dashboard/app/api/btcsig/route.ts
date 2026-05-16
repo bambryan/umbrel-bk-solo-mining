@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { writeConfig } from "@/lib/ckpoolConfig";
 import { restartContainer } from "@/lib/docker";
 
-const CKPOOL_CONTAINER = process.env.CKPOOL_CONTAINER || "bk-solo-mining_ckpool_1";
+const CKPOOL_CONTAINER = process.env.CKPOOL_CONTAINER || "bk-mining-solo-mining_ckpool_1";
 
 export async function PATCH(req: Request) {
   const body = (await req.json()) as { btcsig?: string };
