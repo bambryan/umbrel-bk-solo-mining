@@ -106,6 +106,10 @@ services:
       context: ./dashboard
       dockerfile: Dockerfile
     image: bk-mining-solo-mining-dashboard:0.1.0
+    # Image is built locally by the install/upgrade script — never try to pull
+    # from a registry. Without this, `docker compose pull` fails with "access
+    # denied" and the install aborts.
+    pull_policy: build
     container_name: bk-mining-solo-mining-dashboard
     restart: unless-stopped
     depends_on:
