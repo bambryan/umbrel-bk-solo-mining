@@ -196,16 +196,43 @@ services:
       retries: 20
       start_period: 2m
 
+  dgb-rpc-proxy:
+    # Sits between dgb-ckpool and dgb-bitcoind. Only purpose: inject
+    # "sha256d" as the positional algo arg on getblocktemplate calls so
+    # digibyted returns SHA-256d-tagged templates (version 0x20000202) and
+    # ckpool's submitted blocks verify correctly. Without this, default
+    # algo is scrypt and every block we'd solve gets rejected by digibyted.
+    image: node:22-alpine
+    container_name: bk-mining-solo-mining_dgb_rpc_proxy_1
+    user: "1000:1000"
+    restart: unless-stopped
+    depends_on:
+      dgb-bitcoind:
+        condition: service_healthy
+    environment:
+      UPSTREAM_HOST: dgb-bitcoind
+      UPSTREAM_PORT: "14022"
+      LISTEN_PORT: "14022"
+      DGB_ALGO: sha256d
+    volumes:
+      - ${APP_DATA_DIR}/data/templates/dgb-rpc-proxy.js:/proxy.js:ro
+    command: ["node", "/proxy.js"]
+
   dgb-ckpool:
-    # Same ckpool image as BCH/BTC. ckpool is SHA-256-only and DGB is a
-    # Bitcoin fork sharing the same RPC + block format, so ckpool can mine
-    # DGB's SHA-256 algo with no changes (only the btcd URL changes).
+    # ckpool is SHA-256d-only. DGB supports SHA-256d as one of 5 algos but
+    # its default getblocktemplate returns scrypt-tagged templates. We route
+    # through dgb-rpc-proxy which injects "sha256d" as the algo arg so the
+    # version bits in the template (and therefore in any solved block ckpool
+    # submits) tag the work as SHA-256d. digibyted then verifies via SHA-256d
+    # and accepts. Without the proxy, every "solved" block was rejected.
     image: ghcr.io/willitmod/wim-solo-ckpool:0.8.3-rc1-590fb2a
     container_name: bk-mining-solo-mining_dgb_ckpool_1
     user: "1000:1000"
     restart: on-failure
     stop_grace_period: 30s
     depends_on:
+      dgb-rpc-proxy:
+        condition: service_started
       dgb-bitcoind:
         condition: service_healthy
     ports:
