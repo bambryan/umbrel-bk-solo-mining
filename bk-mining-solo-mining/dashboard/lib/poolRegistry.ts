@@ -2,11 +2,11 @@
 // Every multi-pool code path (ckpool readers, RPC client, sampler, API routes)
 // resolves a pool id to a PoolDef here.
 
-export type PoolId = "bch" | "btc";
+export type PoolId = "bch" | "btc" | "dgb";
 
 export interface PoolDef {
   id: PoolId;
-  displayName: string;   // "BCH" — short, for header dropdown
+  displayName: string;   // "BCH" — short, for header / tiles
   fullName: string;      // "Bitcoin Cash"
   ckpoolWwwDir: string;
   ckpoolConfigPath: string;
@@ -57,17 +57,38 @@ const POOL_DEFS: Record<PoolId, Omit<PoolDef, "id">> = {
       process.env.BTC_BITCOIND_CONTAINER || "bk-mining-solo-mining_btc_bitcoind_1",
     stratumPort: Number(process.env.STRATUM_PORT_BTC) || 7890,
   },
+  dgb: {
+    displayName: "DGB",
+    fullName: "DigiByte",
+    ckpoolWwwDir: process.env.CKPOOL_WWW_DIR_DGB || "/dgb-ckpool-www",
+    ckpoolConfigPath:
+      process.env.CKPOOL_CONFIG_PATH_DGB || "/dgb-ckpool-config/ckpool.conf",
+    // digibyted uses its own default RPC port (14022). Different from BCH/BTC
+    // which use 28332 — DGB devs picked their own numbers.
+    rpcHost: process.env.DGB_RPC_HOST || "dgb-bitcoind",
+    rpcPort: Number(process.env.DGB_RPC_PORT) || 14022,
+    rpcUser: process.env.DGB_RPC_USER || "dgb",
+    rpcPass: process.env.DGB_RPC_PASS || "",
+    ckpoolContainer:
+      process.env.DGB_CKPOOL_CONTAINER || "bk-mining-solo-mining_dgb_ckpool_1",
+    nodeContainer:
+      process.env.DGB_BITCOIND_CONTAINER || "bk-mining-solo-mining_dgb_bitcoind_1",
+    // 5678 matches AxeDGB's miningcore SHA-256 port — rigs reconnect without
+    // any reconfiguration.
+    stratumPort: Number(process.env.STRATUM_PORT_DGB) || 5678,
+  },
 };
 
+const ALL_POOL_IDS: PoolId[] = ["bch", "btc", "dgb"];
+
 // Enabled pools come from the POOLS env (comma-separated). Defaults to "bch"
-// so the existing single-pool config keeps working. Phase 3 adds "bch,btc".
+// so the existing single-pool config keeps working.
 export function getEnabledPoolIds(): PoolId[] {
   const raw = process.env.POOLS || "bch";
-  const all: PoolId[] = ["bch", "btc"];
   return raw
     .split(",")
     .map((s) => s.trim().toLowerCase())
-    .filter((s): s is PoolId => all.includes(s as PoolId));
+    .filter((s): s is PoolId => ALL_POOL_IDS.includes(s as PoolId));
 }
 
 export function getPool(id: PoolId): PoolDef {
@@ -84,5 +105,7 @@ export function getEnabledPools(): PoolDef[] {
 // and pages that read `?pool=`.
 export function parsePoolId(raw: string | null | undefined): PoolId {
   const v = (raw || "").toLowerCase();
-  return v === "btc" ? "btc" : "bch";
+  if (v === "btc") return "btc";
+  if (v === "dgb") return "dgb";
+  return "bch";
 }

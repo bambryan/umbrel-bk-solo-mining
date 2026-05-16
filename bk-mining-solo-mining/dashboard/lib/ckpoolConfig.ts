@@ -70,20 +70,27 @@ export async function getPoolSettings(pool: PoolId = "bch"): Promise<PoolSetting
 }
 
 // Loose address validation — ckpool itself rejects anything invalid against
-// the consensus rules. We just catch obvious typos client-side. The same
-// formats are valid for both BCH and BTC since they share P2PKH/P2SH/Segwit
-// prefixes (with the exception of CashAddr which is BCH-only). For BTC we
-// also accept bech32 (bc1…) addresses.
-const ADDR_LEGACY = /^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$/; // 1… P2PKH, 3… P2SH
+// the consensus rules. We just catch obvious typos client-side.
+// Per-chain prefix rules:
+//   BCH/BTC: legacy starts with 1 (P2PKH) or 3 (P2SH)
+//   BCH:     also CashAddr (q… or p…, optional bitcoincash: prefix)
+//   BTC:     also bech32 (bc1…)
+//   DGB:     legacy starts with D (P2PKH) or S (P2SH), bech32 dgb1…
+const ADDR_LEGACY_BTC_BCH = /^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$/;
+const ADDR_LEGACY_DGB = /^[DS][a-km-zA-HJ-NP-Z1-9]{25,34}$/;
 const ADDR_CASHADDR = /^(bitcoincash:)?[qp][a-z0-9]{39,49}$/i;
-const ADDR_BECH32 = /^bc1[ac-hj-np-z02-9]{6,87}$/i;       // BTC native segwit
+const ADDR_BECH32_BTC = /^bc1[ac-hj-np-z02-9]{6,87}$/i;
+const ADDR_BECH32_DGB = /^dgb1[ac-hj-np-z02-9]{6,87}$/i;
 
 export function isValidPayoutAddress(addr: string, pool: PoolId = "bch"): boolean {
   const a = addr.trim();
   if (!a) return false;
-  if (ADDR_LEGACY.test(a)) return true;
+  if (pool === "dgb") {
+    return ADDR_LEGACY_DGB.test(a) || ADDR_BECH32_DGB.test(a);
+  }
+  if (ADDR_LEGACY_BTC_BCH.test(a)) return true;
   if (pool === "bch" && ADDR_CASHADDR.test(a)) return true;
-  if (pool === "btc" && ADDR_BECH32.test(a)) return true;
+  if (pool === "btc" && ADDR_BECH32_BTC.test(a)) return true;
   return false;
 }
 
@@ -99,6 +106,8 @@ export function validatePoolSettings(p: Partial<PoolSettings>, pool: PoolId = "b
   if (p.btcaddress != null && !isValidPayoutAddress(p.btcaddress, pool)) {
     const examples = pool === "btc"
       ? "(1…/3… legacy or bc1… bech32)"
+      : pool === "dgb"
+      ? "(D…/S… legacy or dgb1… bech32)"
       : "(1…/3… legacy or q…/p… cashaddr)";
     return { ok: false, error: `Payout address doesn't look like a valid ${pool.toUpperCase()} address ${examples}.` };
   }

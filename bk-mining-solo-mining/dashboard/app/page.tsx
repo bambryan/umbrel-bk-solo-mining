@@ -19,7 +19,7 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
   );
 }
 
-async function seedSeries(metric: string, windowSec: number, pool: "bch" | "btc"): Promise<number[]> {
+async function seedSeries(metric: string, windowSec: number, pool: "bch" | "btc" | "dgb"): Promise<number[]> {
   const rows = await readSeries(windowSec, pool);
   return rows.map((r) => {
     const v = (r as Record<string, unknown>)[metric];

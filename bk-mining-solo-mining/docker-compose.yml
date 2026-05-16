@@ -35,6 +35,7 @@ services:
         mkdir -p \
           /data/bchn /data/ckpool/config /data/ckpool/www/pool /data/ckpool/www/users \
           /data/btc/bitcoind /data/btc/ckpool/config /data/btc/ckpool/www/pool /data/btc/ckpool/www/users \
+          /data/dgb/bitcoind /data/dgb/ckpool/config /data/dgb/ckpool/www/pool /data/dgb/ckpool/www/users \
           /data/templates /data/snapshots
 
         # BCH templates → live config (idempotent)
@@ -55,13 +56,23 @@ services:
           envsubst < /data/templates/btc-ckpool.conf.template > /data/btc/ckpool/config/ckpool.conf
         fi
 
-        # Node-process dirs owned by 1000:1000 (bchn + bitcoind containers run
-        # as that uid). Ckpool stats dirs likewise — ckpool writes there.
-        chown -R 1000:1000 /data/bchn /data/ckpool/www /data/btc/bitcoind /data/btc/ckpool/www
+        # DGB templates → live config (idempotent). digibyted reads digibyte.conf
+        # (not bitcoin.conf). For the AxeDGB migration the chain dir is pre-populated.
+        if [ ! -f /data/dgb/bitcoind/digibyte.conf ]; then
+          envsubst < /data/templates/dgb-digibyte.conf.template > /data/dgb/bitcoind/digibyte.conf
+        fi
+        if [ ! -f /data/dgb/ckpool/config/ckpool.conf ]; then
+          envsubst < /data/templates/dgb-ckpool.conf.template > /data/dgb/ckpool/config/ckpool.conf
+        fi
+
+        # Node-process dirs owned by 1000:1000 (bchn + bitcoind + digibyted
+        # containers run as that uid). Ckpool stats dirs likewise — ckpool
+        # writes there.
+        chown -R 1000:1000 /data/bchn /data/ckpool/www /data/btc/bitcoind /data/btc/ckpool/www /data/dgb/bitcoind /data/dgb/ckpool/www
         # Dashboard (nextjs uid 1001) writes ckpool.conf + sentinel files in
-        # /data/{,btc/}ckpool/config and the snapshots dir. ckpool runs as
-        # 1000 but only READS the config, so 1001-owned + mode 644 works.
-        chown -R 1001:1001 /data/ckpool/config /data/btc/ckpool/config /data/snapshots
+        # the per-pool ckpool/config dirs and the snapshots dir. ckpool runs
+        # as 1000 but only READS the config, so 1001-owned + mode 644 works.
+        chown -R 1001:1001 /data/ckpool/config /data/btc/ckpool/config /data/dgb/ckpool/config /data/snapshots
         echo "[init] ready"
 
   bchn:
@@ -158,6 +169,55 @@ services:
       - /bin/sh
       - /ckpool-entrypoint.sh
 
+  dgb-bitcoind:
+    # digibyted (DGB's bitcoind fork). Image is single-binary, no orchestrator
+    # so we use a simple custom entrypoint exec'ing digibyted directly with
+    # our tuning flags.
+    image: ghcr.io/willitmod/digibyte:8.26.2
+    container_name: bk-mining-solo-mining_dgb_bitcoind_1
+    user: "1000:1000"
+    restart: unless-stopped
+    stop_grace_period: 15m30s
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    ports:
+      - "12024:12024/tcp"
+    volumes:
+      - ${APP_DATA_DIR}/data/dgb/bitcoind:/data
+      - ${APP_DATA_DIR}/data/templates/dgb-bitcoind-entrypoint.sh:/dgb-bitcoind-entrypoint.sh:ro
+    entrypoint:
+      - /bin/sh
+      - /dgb-bitcoind-entrypoint.sh
+    healthcheck:
+      test: ["CMD-SHELL", "digibyte-cli -datadir=/data getblockchaininfo >/dev/null 2>&1"]
+      interval: 30s
+      timeout: 10s
+      retries: 20
+      start_period: 2m
+
+  dgb-ckpool:
+    # Same ckpool image as BCH/BTC. ckpool is SHA-256-only and DGB is a
+    # Bitcoin fork sharing the same RPC + block format, so ckpool can mine
+    # DGB's SHA-256 algo with no changes (only the btcd URL changes).
+    image: ghcr.io/willitmod/wim-solo-ckpool:0.8.3-rc1-590fb2a
+    container_name: bk-mining-solo-mining_dgb_ckpool_1
+    user: "1000:1000"
+    restart: on-failure
+    stop_grace_period: 30s
+    depends_on:
+      dgb-bitcoind:
+        condition: service_healthy
+    ports:
+      - "5678:3333/tcp"
+    volumes:
+      - ${APP_DATA_DIR}/data/dgb/ckpool/config:/config
+      - ${APP_DATA_DIR}/data/dgb/ckpool/www:/www
+      - ${APP_DATA_DIR}/data/templates/ckpool-entrypoint.sh:/ckpool-entrypoint.sh:ro
+    entrypoint:
+      - /bin/sh
+      - /ckpool-entrypoint.sh
+
   dashboard:
     image: bk-mining-solo-mining-dashboard:0.1.0
     pull_policy: never
@@ -175,10 +235,8 @@ services:
     environment:
       NODE_ENV: production
       PORT: "3000"
-      # Pools enabled in this app — comma-separated. Adding "btc" lights up
-      # the header pool switcher; the actual btc-bitcoind + btc-ckpool
-      # services land in a follow-up phase.
-      POOLS: "bch,btc"
+      # Pools enabled in this app — comma-separated.
+      POOLS: "bch,btc,dgb"
       # BCH (existing)
       BCH_RPC_HOST: bchn
       BCH_RPC_PORT: "28332"
@@ -199,6 +257,16 @@ services:
       BTC_CKPOOL_CONTAINER: bk-mining-solo-mining_btc_ckpool_1
       BTC_BITCOIND_CONTAINER: bk-mining-solo-mining_btc_bitcoind_1
       STRATUM_PORT_BTC: "7890"
+      # DGB
+      DGB_RPC_HOST: dgb-bitcoind
+      DGB_RPC_PORT: "14022"
+      DGB_RPC_USER: dgb
+      DGB_RPC_PASS: ${APP_PASSWORD}
+      CKPOOL_WWW_DIR_DGB: /dgb-ckpool-www
+      CKPOOL_CONFIG_PATH_DGB: /dgb-ckpool-config/ckpool.conf
+      DGB_CKPOOL_CONTAINER: bk-mining-solo-mining_dgb_ckpool_1
+      DGB_BITCOIND_CONTAINER: bk-mining-solo-mining_dgb_bitcoind_1
+      STRATUM_PORT_DGB: "5678"
       # Back-compat aliases for code that hasn't been migrated to the
       # per-pool env scheme.
       STRATUM_PORT: "4567"
@@ -210,5 +278,7 @@ services:
       - ${APP_DATA_DIR}/data/ckpool/config:/ckpool-config
       - ${APP_DATA_DIR}/data/btc/ckpool/www:/btc-ckpool-www:ro
       - ${APP_DATA_DIR}/data/btc/ckpool/config:/btc-ckpool-config
+      - ${APP_DATA_DIR}/data/dgb/ckpool/www:/dgb-ckpool-www:ro
+      - ${APP_DATA_DIR}/data/dgb/ckpool/config:/dgb-ckpool-config
       - ${APP_DATA_DIR}/data/snapshots:/snapshots
       - /var/run/docker.sock:/var/run/docker.sock
