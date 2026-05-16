@@ -4,7 +4,7 @@ category: bitcoin
 name: BK Solo Mining
 version: "0.1.0"
 tagline: Solo BCH mining — BCHN + ckpool + dashboard
-icon: https://raw.githubusercontent.com/bambryan/umbrel-bk-solo-mining/main/bk-mining-solo-mining/icon.svg
+icon: https://raw.githubusercontent.com/bambryan/umbrel-bk-solo-mining/main/bk-mining-solo-mining/icon.png
 description: >-
   Full Bitcoin Cash node (BCHN) plus ckpool configured for solo mining,
   with a Next.js dashboard that shows pool hashrate, worker breakdown,
