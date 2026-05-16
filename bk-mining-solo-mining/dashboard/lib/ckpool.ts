@@ -1,7 +1,6 @@
 import { promises as fs } from "fs";
 import path from "path";
-
-const WWW_DIR = process.env.CKPOOL_WWW_DIR || "/ckpool-www";
+import { getPool, type PoolId } from "./poolRegistry";
 
 export interface PoolStats {
   runtime: number;
@@ -83,14 +82,18 @@ async function readOrNull(p: string): Promise<string | null> {
   try { return await fs.readFile(p, "utf8"); } catch { return null; }
 }
 
-export async function getPoolStats(): Promise<PoolStats | null> {
-  const text = await readOrNull(path.join(WWW_DIR, "pool", "pool.status"));
+function wwwDir(pool: PoolId): string {
+  return getPool(pool).ckpoolWwwDir;
+}
+
+export async function getPoolStats(pool: PoolId = "bch"): Promise<PoolStats | null> {
+  const text = await readOrNull(path.join(wwwDir(pool), "pool", "pool.status"));
   if (!text) return null;
   return parseStats<PoolStats>(text);
 }
 
-export async function getUsers(): Promise<{ address: string; stats: UserStats }[]> {
-  const usersDir = path.join(WWW_DIR, "users");
+export async function getUsers(pool: PoolId = "bch"): Promise<{ address: string; stats: UserStats }[]> {
+  const usersDir = path.join(wwwDir(pool), "users");
   let entries: string[];
   try { entries = await fs.readdir(usersDir); } catch { return []; }
   const results = [];
@@ -103,15 +106,15 @@ export async function getUsers(): Promise<{ address: string; stats: UserStats }[
   return results;
 }
 
-export async function getWorkers(address: string): Promise<WorkerStats[]> {
+export async function getWorkers(address: string, pool: PoolId = "bch"): Promise<WorkerStats[]> {
   // Prefer the embedded worker[] array in the user file (newer ckpool builds).
   // Fall back to the legacy <addr>.workers file if the embedded form is absent.
-  const userText = await readOrNull(path.join(WWW_DIR, "users", address));
+  const userText = await readOrNull(path.join(wwwDir(pool), "users", address));
   if (userText) {
     const stats = parseStats<UserStats>(userText);
     if (Array.isArray(stats.worker)) return stats.worker;
   }
-  const text = await readOrNull(path.join(WWW_DIR, "users", `${address}.workers`));
+  const text = await readOrNull(path.join(wwwDir(pool), "users", `${address}.workers`));
   if (!text) return [];
   const out: WorkerStats[] = [];
   for (const line of text.split(/\r?\n/)) {
@@ -122,11 +125,11 @@ export async function getWorkers(address: string): Promise<WorkerStats[]> {
   return out;
 }
 
-export async function getAllWorkers(): Promise<WorkerStats[]> {
-  const users = await getUsers();
+export async function getAllWorkers(pool: PoolId = "bch"): Promise<WorkerStats[]> {
+  const users = await getUsers(pool);
   const all: WorkerStats[] = [];
   for (const u of users) {
-    all.push(...(await getWorkers(u.address)));
+    all.push(...(await getWorkers(u.address, pool)));
   }
   return all;
 }

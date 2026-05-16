@@ -1,13 +1,11 @@
 import { promises as fs } from "fs";
 import path from "path";
+import { getPool, type PoolId } from "./poolRegistry";
 
 // Client-safe types + presets live in their own file so client components
 // can import them without dragging fs/path into the browser bundle.
 export { VARDIFF_PRESETS, type PoolSettings } from "./poolSettings.types";
 import type { PoolSettings } from "./poolSettings.types";
-
-const CONFIG_PATH = process.env.CKPOOL_CONFIG_PATH || "/ckpool-config/ckpool.conf";
-const SENTINEL_USE_MINER_USERNAME = path.join(path.dirname(CONFIG_PATH), "_use_miner_username");
 
 export interface CkpoolConfig {
   btcaddress: string;
@@ -18,38 +16,49 @@ export interface CkpoolConfig {
   [k: string]: unknown;
 }
 
-export async function readConfig(): Promise<CkpoolConfig> {
-  const text = await fs.readFile(CONFIG_PATH, "utf8");
+function configPath(pool: PoolId): string {
+  return getPool(pool).ckpoolConfigPath;
+}
+
+function sentinelPath(pool: PoolId, name: string): string {
+  return path.join(path.dirname(configPath(pool)), name);
+}
+
+const SENTINEL_USE_MINER_USERNAME = "_use_miner_username";
+
+export async function readConfig(pool: PoolId = "bch"): Promise<CkpoolConfig> {
+  const text = await fs.readFile(configPath(pool), "utf8");
   return JSON.parse(text);
 }
 
-export async function writeConfig(patch: Partial<CkpoolConfig>): Promise<CkpoolConfig> {
-  const current = await readConfig();
+export async function writeConfig(patch: Partial<CkpoolConfig>, pool: PoolId = "bch"): Promise<CkpoolConfig> {
+  const current = await readConfig(pool);
   const next = { ...current, ...patch };
-  await fs.writeFile(CONFIG_PATH, JSON.stringify(next, null, 2) + "\n", "utf8");
+  await fs.writeFile(configPath(pool), JSON.stringify(next, null, 2) + "\n", "utf8");
   return next;
 }
 
-export async function getUseMinerUsername(): Promise<boolean> {
+export async function getUseMinerUsername(pool: PoolId = "bch"): Promise<boolean> {
   try {
-    await fs.access(SENTINEL_USE_MINER_USERNAME);
+    await fs.access(sentinelPath(pool, SENTINEL_USE_MINER_USERNAME));
     return true;
   } catch {
     return false;
   }
 }
 
-export async function setUseMinerUsername(on: boolean): Promise<void> {
+export async function setUseMinerUsername(on: boolean, pool: PoolId = "bch"): Promise<void> {
+  const p = sentinelPath(pool, SENTINEL_USE_MINER_USERNAME);
   if (on) {
-    await fs.writeFile(SENTINEL_USE_MINER_USERNAME, "", "utf8");
+    await fs.writeFile(p, "", "utf8");
   } else {
-    try { await fs.unlink(SENTINEL_USE_MINER_USERNAME); } catch { /* already gone */ }
+    try { await fs.unlink(p); } catch { /* already gone */ }
   }
 }
 
-export async function getPoolSettings(): Promise<PoolSettings> {
-  const cfg = await readConfig();
-  const useMinerUsername = await getUseMinerUsername();
+export async function getPoolSettings(pool: PoolId = "bch"): Promise<PoolSettings> {
+  const cfg = await readConfig(pool);
+  const useMinerUsername = await getUseMinerUsername(pool);
   return {
     btcaddress: cfg.btcaddress,
     btcsig: cfg.btcsig,
@@ -60,29 +69,38 @@ export async function getPoolSettings(): Promise<PoolSettings> {
   };
 }
 
-// Loose validation — ckpool itself will reject anything that doesn't parse
-// against the BCH consensus rules. We just catch obvious typos client-side
-// so users don't accidentally save garbage and lose all their blocks.
-const ADDR_LEGACY = /^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$/; // 1… (P2PKH), 3… (P2SH)
-const ADDR_CASHADDR_LOWER = /^(bitcoincash:)?[qp][a-z0-9]{39,49}$/;
-const ADDR_CASHADDR_UPPER = /^(BITCOINCASH:)?[QP][A-Z0-9]{39,49}$/;
+// Loose address validation — ckpool itself rejects anything invalid against
+// the consensus rules. We just catch obvious typos client-side. The same
+// formats are valid for both BCH and BTC since they share P2PKH/P2SH/Segwit
+// prefixes (with the exception of CashAddr which is BCH-only). For BTC we
+// also accept bech32 (bc1…) addresses.
+const ADDR_LEGACY = /^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$/; // 1… P2PKH, 3… P2SH
+const ADDR_CASHADDR = /^(bitcoincash:)?[qp][a-z0-9]{39,49}$/i;
+const ADDR_BECH32 = /^bc1[ac-hj-np-z02-9]{6,87}$/i;       // BTC native segwit
 
-export function isValidBchAddress(addr: string): boolean {
+export function isValidPayoutAddress(addr: string, pool: PoolId = "bch"): boolean {
   const a = addr.trim();
   if (!a) return false;
   if (ADDR_LEGACY.test(a)) return true;
-  if (ADDR_CASHADDR_LOWER.test(a) || ADDR_CASHADDR_UPPER.test(a)) return true;
+  if (pool === "bch" && ADDR_CASHADDR.test(a)) return true;
+  if (pool === "btc" && ADDR_BECH32.test(a)) return true;
   return false;
 }
+
+// Back-compat alias for the BCH-only callers — same as isValidPayoutAddress("bch").
+export const isValidBchAddress = (a: string) => isValidPayoutAddress(a, "bch");
 
 export interface ValidationResult {
   ok: boolean;
   error?: string;
 }
 
-export function validatePoolSettings(p: Partial<PoolSettings>): ValidationResult {
-  if (p.btcaddress != null && !isValidBchAddress(p.btcaddress)) {
-    return { ok: false, error: "Payout address doesn't look like a valid BCH address (legacy 1…/3… or cashaddr q…/p…)." };
+export function validatePoolSettings(p: Partial<PoolSettings>, pool: PoolId = "bch"): ValidationResult {
+  if (p.btcaddress != null && !isValidPayoutAddress(p.btcaddress, pool)) {
+    const examples = pool === "btc"
+      ? "(1…/3… legacy or bc1… bech32)"
+      : "(1…/3… legacy or q…/p… cashaddr)";
+    return { ok: false, error: `Payout address doesn't look like a valid ${pool.toUpperCase()} address ${examples}.` };
   }
   if (p.btcsig != null) {
     const s = p.btcsig.trim();
@@ -107,4 +125,3 @@ export function validatePoolSettings(p: Partial<PoolSettings>): ValidationResult
   }
   return { ok: true };
 }
-

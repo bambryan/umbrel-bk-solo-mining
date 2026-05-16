@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { getPoolStats, parseHashrate, formatHashrate, formatSI, formatAgo } from "@/lib/ckpool";
 import { getBlockchainInfo, getNetworkInfo, getMempoolInfo } from "@/lib/bchn";
 import { readSeries, parseWindow } from "@/lib/history";
+import { parsePoolId, getPool } from "@/lib/poolRegistry";
 import { SparkCard } from "@/components/SparkCard";
 import { WindowSelector } from "@/components/WindowSelector";
 
@@ -18,87 +19,74 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
   );
 }
 
-// Server-side helper to seed each SparkCard with a starting series so the
-// first paint has shape, not just a flat dashed baseline.
-async function seedSeries(metric: string, windowSec: number): Promise<number[]> {
-  const rows = await readSeries(windowSec);
+async function seedSeries(metric: string, windowSec: number, pool: "bch" | "btc"): Promise<number[]> {
+  const rows = await readSeries(windowSec, pool);
   return rows.map((r) => {
     const v = (r as Record<string, unknown>)[metric];
     return typeof v === "number" ? v : 0;
   });
 }
 
-type PageProps = { searchParams: Promise<{ w?: string }> };
+type PageProps = { searchParams: Promise<{ w?: string; pool?: string }> };
 
 export default async function Overview({ searchParams }: PageProps) {
   const sp = await searchParams;
   const windowSec = parseWindow(sp.w);
+  const pool = parsePoolId(sp.pool);
+  const poolDef = getPool(pool);
 
-  const [pool, info, net, mempool] = await Promise.allSettled([
-    getPoolStats(),
-    getBlockchainInfo(),
-    getNetworkInfo(),
-    getMempoolInfo(),
+  const [poolRes, infoRes, netRes, mempoolRes] = await Promise.allSettled([
+    getPoolStats(pool),
+    getBlockchainInfo(pool),
+    getNetworkInfo(pool),
+    getMempoolInfo(pool),
   ]);
-  const poolStats = pool.status === "fulfilled" ? pool.value : null;
-  const bchInfo = info.status === "fulfilled" ? info.value : null;
-  const bchNet = net.status === "fulfilled" ? net.value : null;
-  const bchMempool = mempool.status === "fulfilled" ? mempool.value : null;
+  const poolStats = poolRes.status === "fulfilled" ? poolRes.value : null;
+  const nodeInfo = infoRes.status === "fulfilled" ? infoRes.value : null;
+  const netInfo = netRes.status === "fulfilled" ? netRes.value : null;
+  const mempool = mempoolRes.status === "fulfilled" ? mempoolRes.value : null;
 
   const hr1m = parseHashrate(poolStats?.hashrate1m);
   const hr1h = parseHashrate(poolStats?.hashrate1hr);
   const hr1d = parseHashrate(poolStats?.hashrate1d);
-  const networkHashrate = bchInfo ? (bchInfo.difficulty * 2 ** 32) / 600 : 0;
+  const networkHashrate = nodeInfo ? (nodeInfo.difficulty * 2 ** 32) / 600 : 0;
   const dailyOdds = networkHashrate > 0 ? (hr1h * 86400) / (networkHashrate * 600) : 0;
 
-  // Seed all sparklines in parallel from the rolling history file.
   const [s_hr1m, s_hr1h, s_hr1d, s_workers, s_accepted, s_rejected, s_best, s_sps, s_diff] =
     await Promise.all([
-      seedSeries("hr1m", windowSec),
-      seedSeries("hr1h", windowSec),
-      seedSeries("hr1d", windowSec),
-      seedSeries("workers", windowSec),
-      seedSeries("accepted", windowSec),
-      seedSeries("rejected", windowSec),
-      seedSeries("bestshare", windowSec),
-      seedSeries("sps1m", windowSec),
-      seedSeries("diff", windowSec),
+      seedSeries("hr1m", windowSec, pool),
+      seedSeries("hr1h", windowSec, pool),
+      seedSeries("hr1d", windowSec, pool),
+      seedSeries("workers", windowSec, pool),
+      seedSeries("accepted", windowSec, pool),
+      seedSeries("rejected", windowSec, pool),
+      seedSeries("bestshare", windowSec, pool),
+      seedSeries("sps1m", windowSec, pool),
+      seedSeries("diff", windowSec, pool),
     ]);
+
+  const nothingFromNode = nodeInfo == null;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold text-slate-200">Pool</h1>
+        <h1 className="text-lg font-semibold text-slate-200">{poolDef.fullName} pool</h1>
         <Suspense fallback={null}><WindowSelector /></Suspense>
       </div>
+
+      {nothingFromNode && (
+        <div className="rounded-md border border-amber-700/40 bg-amber-900/20 text-amber-300 px-3 py-2 text-sm">
+          {poolDef.displayName} node not reachable yet (no chain info). If you just installed the
+          stack, give bitcoind a minute to start. Stats below are from ckpool only.
+        </div>
+      )}
 
       <section>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Suspense fallback={null}>
-            <SparkCard
-              label="1m hashrate"
-              metric="hr1m"
-              initialSeries={s_hr1m}
-              initialValue={formatHashrate(hr1m)}
-              format="hashrate"
-              color="#22d3ee"
-            />
-            <SparkCard
-              label="1h hashrate"
-              metric="hr1h"
-              initialSeries={s_hr1h}
-              initialValue={formatHashrate(hr1h)}
-              format="hashrate"
-              color="#ec4899"
-            />
-            <SparkCard
-              label="1d hashrate"
-              metric="hr1d"
-              initialSeries={s_hr1d}
-              initialValue={formatHashrate(hr1d)}
-              format="hashrate"
-              color="#a78bfa"
-            />
+            <SparkCard label="1m hashrate" metric="hr1m" initialSeries={s_hr1m} initialValue={formatHashrate(hr1m)} format="hashrate" color="#22d3ee" />
+            <SparkCard label="1h hashrate" metric="hr1h" initialSeries={s_hr1h} initialValue={formatHashrate(hr1h)} format="hashrate" color="#ec4899" />
+            <SparkCard label="1d hashrate" metric="hr1d" initialSeries={s_hr1d} initialValue={formatHashrate(hr1d)} format="hashrate" color="#a78bfa" />
             <SparkCard
               label="Workers"
               metric="workers"
@@ -116,41 +104,10 @@ export default async function Overview({ searchParams }: PageProps) {
         <h2 className="text-lg font-semibold mb-3 text-slate-200">Shares</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Suspense fallback={null}>
-            <SparkCard
-              label="Accepted"
-              metric="accepted"
-              initialSeries={s_accepted}
-              initialValue={formatSI(poolStats?.accepted)}
-              format="si"
-              sub={poolStats ? poolStats.accepted.toLocaleString() : undefined}
-              color="#22d3ee"
-            />
-            <SparkCard
-              label="Rejected"
-              metric="rejected"
-              initialSeries={s_rejected}
-              initialValue={formatSI(poolStats?.rejected)}
-              format="si"
-              sub={poolStats ? poolStats.rejected.toLocaleString() : undefined}
-              color="#f87171"
-            />
-            <SparkCard
-              label="Best share"
-              metric="bestshare"
-              initialSeries={s_best}
-              initialValue={formatSI(poolStats?.bestshare)}
-              format="si"
-              sub={poolStats ? poolStats.bestshare.toLocaleString() : undefined}
-              color="#fbbf24"
-            />
-            <SparkCard
-              label="SPS (1m)"
-              metric="sps1m"
-              initialSeries={s_sps}
-              initialValue={poolStats ? poolStats.SPS1m.toFixed(2) : "—"}
-              format="decimal2"
-              color="#a78bfa"
-            />
+            <SparkCard label="Accepted" metric="accepted" initialSeries={s_accepted} initialValue={formatSI(poolStats?.accepted)} format="si" sub={poolStats ? poolStats.accepted.toLocaleString() : undefined} color="#22d3ee" />
+            <SparkCard label="Rejected" metric="rejected" initialSeries={s_rejected} initialValue={formatSI(poolStats?.rejected)} format="si" sub={poolStats ? poolStats.rejected.toLocaleString() : undefined} color="#f87171" />
+            <SparkCard label="Best share" metric="bestshare" initialSeries={s_best} initialValue={formatSI(poolStats?.bestshare)} format="si" sub={poolStats ? poolStats.bestshare.toLocaleString() : undefined} color="#fbbf24" />
+            <SparkCard label="SPS (1m)" metric="sps1m" initialSeries={s_sps} initialValue={poolStats ? poolStats.SPS1m.toFixed(2) : "—"} format="decimal2" color="#a78bfa" />
           </Suspense>
         </div>
       </section>
@@ -158,31 +115,12 @@ export default async function Overview({ searchParams }: PageProps) {
       <section>
         <h2 className="text-lg font-semibold mb-3 text-slate-200">Chain</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <StatCard
-            label="Block height"
-            value={bchInfo ? bchInfo.blocks.toLocaleString() : "—"}
-            sub={bchInfo?.headers ? `headers ${bchInfo.headers.toLocaleString()}` : undefined}
-          />
+          <StatCard label="Block height" value={nodeInfo ? nodeInfo.blocks.toLocaleString() : "—"} sub={nodeInfo?.headers ? `headers ${nodeInfo.headers.toLocaleString()}` : undefined} />
           <Suspense fallback={null}>
-            <SparkCard
-              label="Network difficulty"
-              metric="diff"
-              initialSeries={s_diff}
-              initialValue={formatSI(bchInfo?.difficulty)}
-              format="si"
-              sub={bchInfo ? bchInfo.difficulty.toExponential(3) : undefined}
-              color="#f59e0b"
-            />
+            <SparkCard label="Network difficulty" metric="diff" initialSeries={s_diff} initialValue={formatSI(nodeInfo?.difficulty)} format="si" sub={nodeInfo ? nodeInfo.difficulty.toExponential(3) : undefined} color="#f59e0b" />
           </Suspense>
-          <StatCard
-            label="Network hashrate"
-            value={networkHashrate ? formatHashrate(networkHashrate) : "—"}
-          />
-          <StatCard
-            label="Peers"
-            value={bchNet ? `${bchNet.connections}` : "—"}
-            sub={bchNet?.subversion}
-          />
+          <StatCard label="Network hashrate" value={networkHashrate ? formatHashrate(networkHashrate) : "—"} />
+          <StatCard label="Peers" value={netInfo ? `${netInfo.connections}` : "—"} sub={netInfo?.subversion} />
         </div>
       </section>
 
@@ -192,16 +130,12 @@ export default async function Overview({ searchParams }: PageProps) {
           <StatCard
             label="Daily block probability"
             value={dailyOdds ? `${(dailyOdds * 100).toFixed(2)}%` : "—"}
-            sub={
-              dailyOdds
-                ? `≈ 1 block every ${(1 / dailyOdds).toFixed(0)} days at current 1h hashrate`
-                : undefined
-            }
+            sub={dailyOdds ? `≈ 1 block every ${(1 / dailyOdds).toFixed(0)} days at current 1h hashrate` : undefined}
           />
           <StatCard
             label="Mempool"
-            value={bchMempool ? `${bchMempool.size.toLocaleString()} txs` : "—"}
-            sub={bchMempool ? `${(bchMempool.bytes / 1e6).toFixed(2)} MB` : undefined}
+            value={mempool ? `${mempool.size.toLocaleString()} txs` : "—"}
+            sub={mempool ? `${(mempool.bytes / 1e6).toFixed(2)} MB` : undefined}
           />
           <StatCard
             label="Pool runtime"
@@ -212,7 +146,7 @@ export default async function Overview({ searchParams }: PageProps) {
       </section>
 
       <p className="text-xs text-slate-500">
-        Sparklines auto-refresh every 30s while the tab is visible. Sampler writes one row per minute.
+        Sparklines auto-refresh every 30s while the tab is visible. Sampler writes one row per pool per minute.
       </p>
     </div>
   );

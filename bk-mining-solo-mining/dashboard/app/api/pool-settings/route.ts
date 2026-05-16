@@ -7,12 +7,12 @@ import {
   type PoolSettings,
 } from "@/lib/ckpoolConfig";
 import { restartContainer } from "@/lib/docker";
+import { getPool, parsePoolId } from "@/lib/poolRegistry";
 
-const CKPOOL_CONTAINER = process.env.CKPOOL_CONTAINER || "bk-mining-solo-mining_ckpool_1";
-
-export async function GET() {
+export async function GET(req: Request) {
+  const pool = parsePoolId(new URL(req.url).searchParams.get("pool"));
   try {
-    const settings = await getPoolSettings();
+    const settings = await getPoolSettings(pool);
     return NextResponse.json(settings);
   } catch (err) {
     return new NextResponse(
@@ -23,8 +23,9 @@ export async function GET() {
 }
 
 export async function PUT(req: Request) {
+  const pool = parsePoolId(new URL(req.url).searchParams.get("pool"));
   const body = (await req.json()) as Partial<PoolSettings>;
-  const v = validatePoolSettings(body);
+  const v = validatePoolSettings(body, pool);
   if (!v.ok) return new NextResponse(v.error ?? "Invalid", { status: 400 });
 
   try {
@@ -32,15 +33,16 @@ export async function PUT(req: Request) {
     for (const k of ["btcaddress", "btcsig", "mindiff", "maxdiff", "startdiff"] as const) {
       if (body[k] !== undefined) patch[k] = body[k];
     }
-    if (Object.keys(patch).length > 0) await writeConfig(patch);
-    if (body.useMinerUsername !== undefined) await setUseMinerUsername(body.useMinerUsername);
+    if (Object.keys(patch).length > 0) await writeConfig(patch, pool);
+    if (body.useMinerUsername !== undefined) await setUseMinerUsername(body.useMinerUsername, pool);
 
-    // Fire-and-forget restart so the client gets a fast response.
-    restartContainer(CKPOOL_CONTAINER).catch((e) => {
-      console.error("[pool-settings] ckpool restart failed:", e);
+    // Fire-and-forget restart of the right pool's ckpool container.
+    const container = getPool(pool).ckpoolContainer;
+    restartContainer(container).catch((e) => {
+      console.error(`[pool-settings:${pool}] ${container} restart failed:`, e);
     });
 
-    const next = await getPoolSettings();
+    const next = await getPoolSettings(pool);
     return NextResponse.json({ ok: true, settings: next });
   } catch (err) {
     return new NextResponse(

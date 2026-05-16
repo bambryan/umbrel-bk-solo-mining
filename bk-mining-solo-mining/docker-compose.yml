@@ -110,15 +110,35 @@ services:
     environment:
       NODE_ENV: production
       PORT: "3000"
+      # Pools enabled in this app — comma-separated. Adding "btc" lights up
+      # the header pool switcher; the actual btc-bitcoind + btc-ckpool
+      # services land in a follow-up phase.
+      POOLS: "bch,btc"
+      # BCH (existing)
       BCH_RPC_HOST: bchn
       BCH_RPC_PORT: "28332"
       BCH_RPC_USER: bch
       BCH_RPC_PASS: ${APP_PASSWORD}
-      CKPOOL_WWW_DIR: /ckpool-www
-      CKPOOL_CONFIG_PATH: /ckpool-config/ckpool.conf
+      CKPOOL_WWW_DIR_BCH: /ckpool-www
+      CKPOOL_CONFIG_PATH_BCH: /ckpool-config/ckpool.conf
       CKPOOL_CONTAINER: bk-mining-solo-mining_ckpool_1
       BCHN_CONTAINER: bk-mining-solo-mining_bchn_1
+      STRATUM_PORT_BCH: "4567"
+      # BTC (slots reserved; populated when the btc-* services come online)
+      BTC_RPC_HOST: btc-bitcoind
+      BTC_RPC_PORT: "28332"
+      BTC_RPC_USER: btc
+      BTC_RPC_PASS: ${APP_PASSWORD}
+      CKPOOL_WWW_DIR_BTC: /btc-ckpool-www
+      CKPOOL_CONFIG_PATH_BTC: /btc-ckpool-config/ckpool.conf
+      BTC_CKPOOL_CONTAINER: bk-mining-solo-mining_btc_ckpool_1
+      BTC_BITCOIND_CONTAINER: bk-mining-solo-mining_btc_bitcoind_1
+      STRATUM_PORT_BTC: "7890"
+      # Back-compat aliases for code that hasn't been migrated to the
+      # per-pool env scheme.
       STRATUM_PORT: "4567"
+      CKPOOL_WWW_DIR: /ckpool-www
+      CKPOOL_CONFIG_PATH: /ckpool-config/ckpool.conf
       SNAPSHOTS_DIR: /snapshots
     volumes:
       - ${APP_DATA_DIR}/data/ckpool/www:/ckpool-www:ro

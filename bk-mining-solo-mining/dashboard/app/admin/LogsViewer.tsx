@@ -1,11 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 const REFRESH_MS = 3_000;
 
 export function LogsViewer() {
-  const [service, setService] = useState<"ckpool" | "bchn">("ckpool");
+  const params = useSearchParams();
+  const pool = params.get("pool") || "bch";
+  // "node" is the canonical name; covers bchn (BCH) and bitcoind (BTC).
+  const [service, setService] = useState<"ckpool" | "node">("ckpool");
   const [tail, setTail] = useState(300);
   const [logs, setLogs] = useState<string>("");
   const [live, setLive] = useState(true);
@@ -25,7 +29,7 @@ export function LogsViewer() {
         return;
       }
       try {
-        const res = await fetch(`/api/logs?service=${service}&tail=${tail}`, { cache: "no-store" });
+        const res = await fetch(`/api/logs?pool=${pool}&service=${service}&tail=${tail}`, { cache: "no-store" });
         const text = await res.text();
         if (cancelled) return;
         if (!res.ok) {
@@ -45,7 +49,7 @@ export function LogsViewer() {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [service, tail, live]);
+  }, [pool, service, tail, live]);
 
   // Auto-scroll to bottom when new content arrives, unless the user has
   // scrolled away.
@@ -68,11 +72,11 @@ export function LogsViewer() {
       <div className="flex flex-wrap gap-2 items-center">
         <select
           value={service}
-          onChange={(e) => setService(e.target.value as "ckpool" | "bchn")}
+          onChange={(e) => setService(e.target.value as "ckpool" | "node")}
           className="rounded-md bg-slate-950 border border-slate-700 px-2 py-1 text-sm"
         >
-          <option value="ckpool">ckpool</option>
-          <option value="bchn">bchn</option>
+          <option value="ckpool">{pool.toUpperCase()} ckpool</option>
+          <option value="node">{pool === "btc" ? "bitcoind" : "bchn"}</option>
         </select>
         <select
           value={tail}

@@ -1,13 +1,17 @@
-// Minimal JSON-RPC client for bchn. Server-only — never expose to browser.
+// Generic JSON-RPC client for a bitcoin-flavored node (bchn for BCH,
+// bitcoind/knots for BTC). Per-pool connection info comes from poolRegistry.
+// Server-only — never expose to browser.
 
-const HOST = process.env.BCH_RPC_HOST || "bchn";
-const PORT = process.env.BCH_RPC_PORT || "28332";
-const USER = process.env.BCH_RPC_USER || "bch";
-const PASS = process.env.BCH_RPC_PASS || "";
+import { getPool, type PoolId } from "./poolRegistry";
 
-async function rpc<T = unknown>(method: string, params: unknown[] = []): Promise<T> {
-  const url = `http://${HOST}:${PORT}/`;
-  const auth = Buffer.from(`${USER}:${PASS}`).toString("base64");
+async function rpc<T = unknown>(
+  pool: PoolId,
+  method: string,
+  params: unknown[] = []
+): Promise<T> {
+  const p = getPool(pool);
+  const url = `http://${p.rpcHost}:${p.rpcPort}/`;
+  const auth = Buffer.from(`${p.rpcUser}:${p.rpcPass}`).toString("base64");
   const res = await fetch(url, {
     method: "POST",
     headers: {
@@ -17,9 +21,9 @@ async function rpc<T = unknown>(method: string, params: unknown[] = []): Promise
     body: JSON.stringify({ jsonrpc: "1.0", id: "dashboard", method, params }),
     cache: "no-store",
   });
-  if (!res.ok) throw new Error(`bchn RPC ${method} → HTTP ${res.status}`);
+  if (!res.ok) throw new Error(`${pool} RPC ${method} → HTTP ${res.status}`);
   const json = (await res.json()) as { result: T; error: { message: string } | null };
-  if (json.error) throw new Error(`bchn RPC ${method} → ${json.error.message}`);
+  if (json.error) throw new Error(`${pool} RPC ${method} → ${json.error.message}`);
   return json.result;
 }
 
@@ -50,27 +54,27 @@ export interface MempoolInfo {
   usage: number;
 }
 
-export async function getBlockchainInfo(): Promise<BlockchainInfo> {
-  return rpc<BlockchainInfo>("getblockchaininfo");
+export async function getBlockchainInfo(pool: PoolId = "bch"): Promise<BlockchainInfo> {
+  return rpc<BlockchainInfo>(pool, "getblockchaininfo");
 }
 
-export async function getNetworkInfo(): Promise<NetworkInfo> {
-  return rpc<NetworkInfo>("getnetworkinfo");
+export async function getNetworkInfo(pool: PoolId = "bch"): Promise<NetworkInfo> {
+  return rpc<NetworkInfo>(pool, "getnetworkinfo");
 }
 
-export async function getMempoolInfo(): Promise<MempoolInfo> {
-  return rpc<MempoolInfo>("getmempoolinfo");
+export async function getMempoolInfo(pool: PoolId = "bch"): Promise<MempoolInfo> {
+  return rpc<MempoolInfo>(pool, "getmempoolinfo");
 }
 
-export async function getRecentBlocks(n = 5): Promise<Array<{ height: number; hash: string; time: number }>> {
-  const info = await getBlockchainInfo();
+export async function getRecentBlocks(n = 5, pool: PoolId = "bch"): Promise<Array<{ height: number; hash: string; time: number }>> {
+  const info = await getBlockchainInfo(pool);
   const heights: number[] = [];
   for (let i = 0; i < n; i++) heights.push(info.blocks - i);
   const out: Array<{ height: number; hash: string; time: number }> = [];
   for (const h of heights) {
     if (h < 0) break;
-    const hash = await rpc<string>("getblockhash", [h]);
-    const block = await rpc<{ time: number }>("getblockheader", [hash]);
+    const hash = await rpc<string>(pool, "getblockhash", [h]);
+    const block = await rpc<{ time: number }>(pool, "getblockheader", [hash]);
     out.push({ height: h, hash, time: block.time });
   }
   return out;

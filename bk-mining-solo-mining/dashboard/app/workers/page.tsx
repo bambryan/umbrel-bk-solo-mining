@@ -1,27 +1,38 @@
 import { getUsers, getWorkers } from "@/lib/ckpool";
 import { parseHashrate, formatHashrate, formatSI } from "@/lib/format";
+import { parsePoolId, getPool } from "@/lib/poolRegistry";
 import { WorkerRow } from "@/components/WorkerRow";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export default async function WorkersPage() {
-  const users = await getUsers();
+type PageProps = { searchParams: Promise<{ pool?: string }> };
+
+export default async function WorkersPage({ searchParams }: PageProps) {
+  const sp = await searchParams;
+  const pool = parsePoolId(sp.pool);
+  const poolDef = getPool(pool);
+
+  const users = await getUsers(pool);
   const byUser = await Promise.all(
     users.map(async (u) => ({
       address: u.address,
       stats: u.stats,
-      workers: await getWorkers(u.address),
+      workers: await getWorkers(u.address, pool),
     }))
   );
 
   return (
     <div className="space-y-8">
+      <header>
+        <h1 className="text-lg font-semibold text-slate-200">{poolDef.fullName} workers</h1>
+      </header>
+
       {byUser.length === 0 && (
         <p className="text-slate-400">
-          No users have connected yet. Point a miner at{" "}
-          <code className="text-amber-400">stratum+tcp://&lt;umbrel-ip&gt;:4567</code>
-          {" "}with any BCH address as the username.
+          No {poolDef.displayName} users have connected yet. Point a miner at{" "}
+          <code className="text-amber-400">stratum+tcp://&lt;umbrel-ip&gt;:{poolDef.stratumPort}</code>
+          {" "}with any {poolDef.displayName} address as the username.
         </p>
       )}
 

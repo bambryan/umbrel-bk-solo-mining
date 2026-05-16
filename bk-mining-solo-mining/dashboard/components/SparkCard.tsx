@@ -43,6 +43,7 @@ export function SparkCard({
 }: Props) {
   const params = useSearchParams();
   const w = params.get("w") || "1h";
+  const pool = params.get("pool") || "bch";
 
   const [series, setSeries] = useState<(number | null)[]>(initialSeries ?? []);
   const [value, setValue] = useState<string>(initialValue);
@@ -53,7 +54,7 @@ export function SparkCard({
     async function tick() {
       if (document.visibilityState !== "visible") return;
       try {
-        const res = await fetch(`/api/history?w=${w}&series=${metric}`, { cache: "no-store" });
+        const res = await fetch(`/api/history?w=${w}&pool=${pool}&series=${metric}`, { cache: "no-store" });
         if (!res.ok) return;
         const data = (await res.json()) as { ts: number[]; series: Record<string, (number | null)[]> };
         const arr = data.series[metric] ?? [];
@@ -78,7 +79,7 @@ export function SparkCard({
       clearInterval(interval);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [w, metric, format]);
+  }, [w, pool, metric, format]);
 
   return (
     <div className="rounded-lg border border-slate-800 bg-slate-900/60 px-4 py-3 flex flex-col">

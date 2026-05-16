@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { type PoolSettings, VARDIFF_PRESETS } from "@/lib/poolSettings.types";
 
-type Props = { initial: PoolSettings };
+type Props = { initial: PoolSettings; pool: "bch" | "btc" };
 
 const PRESET_NAMES = Object.keys(VARDIFF_PRESETS);
 const CUSTOM = "Custom";
@@ -19,7 +19,7 @@ function detectPreset(p: PoolSettings): string {
   return CUSTOM;
 }
 
-export function PoolSettingsForm({ initial }: Props) {
+export function PoolSettingsForm({ initial, pool }: Props) {
   const [s, setS] = useState<PoolSettings>(initial);
   const [preset, setPreset] = useState<string>(detectPreset(initial));
   const [saving, setSaving] = useState(false);
@@ -42,7 +42,7 @@ export function PoolSettingsForm({ initial }: Props) {
     setSaving(true);
     setMsg(null);
     try {
-      const res = await fetch("/api/pool-settings", {
+      const res = await fetch(`/api/pool-settings?pool=${pool}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(s),
@@ -65,12 +65,15 @@ export function PoolSettingsForm({ initial }: Props) {
           value={s.btcaddress}
           onChange={(e) => update("btcaddress", e.target.value.trim())}
           className="w-full rounded-md bg-slate-950 border border-slate-700 px-3 py-2 font-mono text-sm focus:outline-none focus:ring-1 focus:ring-amber-500"
-          placeholder="1… or 3… or bitcoincash:…"
+          placeholder={pool === "btc" ? "1… or 3… or bc1…" : "1… or 3… or bitcoincash:…"}
         />
         <p className="text-xs text-slate-500 mt-1">
           Default coinbase address when{" "}
           <span className="text-slate-300">Use miner username</span>{" "}
-          is off (or when a miner connects without a valid address). Legacy (1…/3…) and CashAddr accepted.
+          is off (or when a miner connects without a valid address).{" "}
+          {pool === "btc"
+            ? "Legacy (1…/3…) and bech32 (bc1…) accepted."
+            : "Legacy (1…/3…) and CashAddr (q…/p…) accepted."}
         </p>
       </div>
 
