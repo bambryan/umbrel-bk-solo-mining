@@ -3,16 +3,29 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Sparkline } from "./Sparkline";
+import { formatHashrate, formatSI } from "@/lib/format";
+
+// Format kind chosen from a fixed set so we can keep all formatter functions
+// inside this client bundle (they can't be passed as props across the
+// server/client boundary).
+type FormatKind = "hashrate" | "si" | "int" | "decimal2";
+
+function applyFormat(kind: FormatKind, n: number | undefined): string {
+  if (n == null || !isFinite(n)) return "—";
+  switch (kind) {
+    case "hashrate": return formatHashrate(n);
+    case "si":       return formatSI(n);
+    case "int":      return Math.round(n).toLocaleString();
+    case "decimal2": return n.toFixed(2);
+  }
+}
 
 type Props = {
   label: string;
-  // Render the headline value from a raw number (or pass a pre-formatted
-  // string via `staticValue`). We accept both because some cards display
-  // counts (raw) and others display strings like "131 TH/s".
-  metric: string; // history series key (e.g. "hr1m", "accepted", "diff")
-  format: (n: number | undefined) => string;
+  metric: string;
+  format: FormatKind;
   initialValue: string;
-  initialSeries?: number[]; // optional SSR-seeded history
+  initialSeries?: number[];
   color?: string;
   sub?: string;
 };
@@ -36,7 +49,6 @@ export function SparkCard({
 
   useEffect(() => {
     let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | null = null;
 
     async function tick() {
       if (document.visibilityState !== "visible") return;
@@ -47,15 +59,14 @@ export function SparkCard({
         const arr = data.series[metric] ?? [];
         if (cancelled) return;
         setSeries(arr);
-        // Headline value = the most recent non-null sample.
         for (let i = arr.length - 1; i >= 0; i--) {
           const v = arr[i];
           if (typeof v === "number") {
-            setValue(format(v));
+            setValue(applyFormat(format, v));
             break;
           }
         }
-      } catch { /* ignore network blips */ }
+      } catch { /* ignore */ }
     }
 
     tick();
@@ -66,7 +77,6 @@ export function SparkCard({
       cancelled = true;
       clearInterval(interval);
       document.removeEventListener("visibilitychange", onVisibility);
-      if (timer) clearTimeout(timer);
     };
   }, [w, metric, format]);
 

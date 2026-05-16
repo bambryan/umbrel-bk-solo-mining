@@ -80,7 +80,7 @@ export default async function Overview({ searchParams }: PageProps) {
               metric="hr1m"
               initialSeries={s_hr1m}
               initialValue={formatHashrate(hr1m)}
-              format={(n) => formatHashrate(n ?? 0)}
+              format="hashrate"
               color="#22d3ee"
             />
             <SparkCard
@@ -88,7 +88,7 @@ export default async function Overview({ searchParams }: PageProps) {
               metric="hr1h"
               initialSeries={s_hr1h}
               initialValue={formatHashrate(hr1h)}
-              format={(n) => formatHashrate(n ?? 0)}
+              format="hashrate"
               color="#ec4899"
             />
             <SparkCard
@@ -96,7 +96,7 @@ export default async function Overview({ searchParams }: PageProps) {
               metric="hr1d"
               initialSeries={s_hr1d}
               initialValue={formatHashrate(hr1d)}
-              format={(n) => formatHashrate(n ?? 0)}
+              format="hashrate"
               color="#a78bfa"
             />
             <SparkCard
@@ -104,7 +104,7 @@ export default async function Overview({ searchParams }: PageProps) {
               metric="workers"
               initialSeries={s_workers}
               initialValue={poolStats ? `${poolStats.Workers}` : "—"}
-              format={(n) => (n == null ? "—" : `${Math.round(n)}`)}
+              format="int"
               sub={poolStats ? `${poolStats.Idle} idle · ${poolStats.Disconnected} disc.` : undefined}
               color="#34d399"
             />
@@ -121,7 +121,7 @@ export default async function Overview({ searchParams }: PageProps) {
               metric="accepted"
               initialSeries={s_accepted}
               initialValue={formatSI(poolStats?.accepted)}
-              format={(n) => formatSI(n)}
+              format="si"
               sub={poolStats ? poolStats.accepted.toLocaleString() : undefined}
               color="#22d3ee"
             />
@@ -130,7 +130,7 @@ export default async function Overview({ searchParams }: PageProps) {
               metric="rejected"
               initialSeries={s_rejected}
               initialValue={formatSI(poolStats?.rejected)}
-              format={(n) => formatSI(n)}
+              format="si"
               sub={poolStats ? poolStats.rejected.toLocaleString() : undefined}
               color="#f87171"
             />
@@ -139,7 +139,7 @@ export default async function Overview({ searchParams }: PageProps) {
               metric="bestshare"
               initialSeries={s_best}
               initialValue={formatSI(poolStats?.bestshare)}
-              format={(n) => formatSI(n)}
+              format="si"
               sub={poolStats ? poolStats.bestshare.toLocaleString() : undefined}
               color="#fbbf24"
             />
@@ -148,7 +148,7 @@ export default async function Overview({ searchParams }: PageProps) {
               metric="sps1m"
               initialSeries={s_sps}
               initialValue={poolStats ? poolStats.SPS1m.toFixed(2) : "—"}
-              format={(n) => (n == null ? "—" : n.toFixed(2))}
+              format="decimal2"
               color="#a78bfa"
             />
           </Suspense>
@@ -169,7 +169,7 @@ export default async function Overview({ searchParams }: PageProps) {
               metric="diff"
               initialSeries={s_diff}
               initialValue={formatSI(bchInfo?.difficulty)}
-              format={(n) => formatSI(n)}
+              format="si"
               sub={bchInfo ? bchInfo.difficulty.toExponential(3) : undefined}
               color="#f59e0b"
             />
