@@ -1,5 +1,5 @@
-import { readConfig } from "@/lib/ckpoolConfig";
-import { BtcsigForm } from "./BtcsigForm";
+import { getPoolSettings } from "@/lib/ckpoolConfig";
+import { PoolSettingsForm } from "./PoolSettingsForm";
 import { RestartButton } from "./RestartButton";
 import { LogsViewer } from "./LogsViewer";
 
@@ -7,27 +7,20 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function AdminPage() {
-  const cfg = await readConfig();
+  const settings = await getPoolSettings();
+
   return (
     <div className="space-y-8">
       <section className="rounded-lg border border-slate-800 bg-slate-900/60 p-4">
-        <h2 className="text-lg font-semibold mb-1 text-slate-200">Coinbase signature</h2>
-        <p className="text-sm text-slate-400 mb-3">
-          Goes into the coinbase tx of any block we solve — visible on block
-          explorers. Wrap with slashes, e.g. <code className="text-amber-400">/solo mined by BK/</code>.
-          Changing this restarts ckpool (miners auto-reconnect in seconds).
-        </p>
-        <BtcsigForm initial={cfg.btcsig} />
-      </section>
-
-      <section className="rounded-lg border border-slate-800 bg-slate-900/60 p-4">
-        <h2 className="text-lg font-semibold mb-1 text-slate-200">Payout address</h2>
-        <p className="text-sm text-slate-400 mb-3">
-          All solo-mined coinbase rewards go directly to this address. Change
-          requires editing <code className="text-amber-400">data/ckpool/config/ckpool.conf</code>{" "}
-          on the host and restarting ckpool — not changeable from here on purpose.
-        </p>
-        <code className="block break-all text-amber-400">{cfg.btcaddress}</code>
+        <header className="mb-4">
+          <h2 className="text-lg font-semibold text-slate-200">Pool settings</h2>
+          <p className="text-sm text-slate-400 mt-1">
+            Saving writes <code className="text-amber-400">ckpool.conf</code> + the{" "}
+            <code className="text-amber-400">_use_miner_username</code> sentinel, then restarts
+            ckpool. Miners auto-reconnect within seconds. bchn is not touched.
+          </p>
+        </header>
+        <PoolSettingsForm initial={settings} />
       </section>
 
       <section className="rounded-lg border border-slate-800 bg-slate-900/60 p-4">

@@ -83,22 +83,14 @@ services:
     ports:
       - "4567:3333/tcp"
     volumes:
-      - ${APP_DATA_DIR}/data/ckpool/config:/config:ro
+      # Note: ckpool needs to read /config and may need to read sentinel files
+      # the dashboard writes there. Mounted RW (dashboard chmod 644).
+      - ${APP_DATA_DIR}/data/ckpool/config:/config
       - ${APP_DATA_DIR}/data/ckpool/www:/www
+      - ${APP_DATA_DIR}/data/templates/ckpool-entrypoint.sh:/ckpool-entrypoint.sh:ro
     entrypoint:
       - /bin/sh
-      - -ec
-      - |
-        rm -f /tmp/ckpool/*.pid 2>/dev/null || true
-        if command -v ckpool >/dev/null 2>&1; then
-          exec ckpool -k -B -L -c /config/ckpool.conf
-        elif [ -x /bin/ckpool ]; then
-          exec /bin/ckpool -k -B -L -c /config/ckpool.conf
-        elif [ -x /usr/bin/ckpool ]; then
-          exec /usr/bin/ckpool -k -B -L -c /config/ckpool.conf
-        else
-          echo "ckpool binary not found in image"; exit 1
-        fi
+      - /ckpool-entrypoint.sh
 
   dashboard:
     image: bk-mining-solo-mining-dashboard:0.1.0
