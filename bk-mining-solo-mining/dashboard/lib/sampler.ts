@@ -2,6 +2,7 @@ import { getPoolStats, parseHashrate } from "./ckpool";
 import { getBlockchainInfo } from "./bchn";
 import { appendSample, trimIfNeeded, type Sample } from "./history";
 import { getEnabledPoolIds, type PoolId } from "./poolRegistry";
+import { watchOnce as watchBlocksOnce } from "./blocksWatcher";
 
 // One sample per enabled pool. Failures on a per-pool basis are isolated —
 // e.g. if the BTC node isn't up yet, the BCH row still gets written.
@@ -46,9 +47,16 @@ async function sampleOne(pool: PoolId): Promise<void> {
 }
 
 // Top-level: called by instrumentation.ts every 60s. Sample every enabled
-// pool sequentially (so console logs are tidy + we don't double-load disk).
+// pool sequentially (so console logs are tidy + we don't double-load disk),
+// then run the blocks watcher (which scans ckpool logs + verifies recent
+// chain blocks for coinbase matches to our payout addresses).
 export async function sample(): Promise<void> {
   for (const pool of getEnabledPoolIds()) {
     await sampleOne(pool);
+  }
+  try {
+    await watchBlocksOnce();
+  } catch (e) {
+    console.warn("[sampler] blocks watcher pass failed:", e instanceof Error ? e.message : e);
   }
 }
