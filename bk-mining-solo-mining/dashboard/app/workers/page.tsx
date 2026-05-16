@@ -1,4 +1,6 @@
-import { getUsers, getWorkers, parseHashrate, formatHashrate, formatSI, formatAgo } from "@/lib/ckpool";
+import { getUsers, getWorkers } from "@/lib/ckpool";
+import { parseHashrate, formatHashrate, formatSI } from "@/lib/format";
+import { WorkerRow } from "@/components/WorkerRow";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -33,6 +35,7 @@ export default async function WorkersPage() {
               {u.workers.length} workers ·{" "}
               best ever {formatSI(u.stats.bestever)}
             </div>
+            <div className="text-xs text-slate-500 mt-1">Click a worker for details.</div>
           </header>
           <div className="overflow-x-auto rounded-lg border border-slate-800">
             <table className="w-full text-sm">
@@ -51,28 +54,9 @@ export default async function WorkersPage() {
                 {u.workers
                   .slice()
                   .sort((a, b) => parseHashrate(b.hashrate1hr) - parseHashrate(a.hashrate1hr))
-                  .map((w) => {
-                    const hot = parseHashrate(w.hashrate1m) > 0;
-                    return (
-                      <tr
-                        key={w.workername}
-                        className="border-t border-slate-800 odd:bg-slate-900/30"
-                      >
-                        <td className="px-3 py-2 font-mono text-xs">
-                          <span className={hot ? "text-emerald-400" : "text-slate-500"}>●</span>{" "}
-                          {w.workername}
-                        </td>
-                        <td className="px-3 py-2 text-right">{formatHashrate(parseHashrate(w.hashrate1m))}</td>
-                        <td className="px-3 py-2 text-right">{formatHashrate(parseHashrate(w.hashrate5m))}</td>
-                        <td className="px-3 py-2 text-right">{formatHashrate(parseHashrate(w.hashrate1hr))}</td>
-                        <td className="px-3 py-2 text-right">{formatHashrate(parseHashrate(w.hashrate1d))}</td>
-                        <td className="px-3 py-2 text-right">{formatSI(w.bestshare)}</td>
-                        <td className="px-3 py-2 text-right text-slate-400">
-                          {formatAgo(w.lastshare)}
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  .map((w) => (
+                    <WorkerRow key={w.workername} worker={w} />
+                  ))}
               </tbody>
             </table>
           </div>
