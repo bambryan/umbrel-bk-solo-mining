@@ -9,6 +9,7 @@ const LINKS: LinkDef[] = [
   { href: "/pools", label: "Pools" },
   { href: "/", label: "Overview" },
   { href: "/workers", label: "Workers" },
+  { href: "/blocks", label: "Blocks" },
   { href: "/admin", label: "Admin" },
 ];
 

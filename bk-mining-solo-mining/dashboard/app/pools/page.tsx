@@ -3,6 +3,8 @@ import { getPoolStats, parseHashrate, formatHashrate, formatSI, formatAgo } from
 import { getBlockchainInfo } from "@/lib/bchn";
 import { getEnabledPools, type PoolDef } from "@/lib/poolRegistry";
 import { readBlocks, type BlockEvent } from "@/lib/blocks";
+// Note: BlocksSection moved to its own /blocks page; kept the import path
+// for the tile-level summary (oursBlocks count + most-recent banner).
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -113,53 +115,6 @@ function PoolTile({ s }: { s: PoolSummary }) {
   );
 }
 
-function BlocksSection({ summaries }: { summaries: PoolSummary[] }) {
-  const allBlocks: { pool: PoolDef; b: BlockEvent }[] = [];
-  for (const s of summaries) for (const b of s.blocks) allBlocks.push({ pool: s.def, b });
-  allBlocks.sort((a, b) => b.b.ts - a.b.ts);
-
-  return (
-    <div>
-      <h2 className="text-lg font-semibold text-slate-200 mb-1">Solved blocks</h2>
-      <p className="text-sm text-slate-400 mb-3">
-        Detected from ckpool logs in real time and cross-verified against each chain's recent coinbase outputs.
-        Empty until you solve one.
-      </p>
-      {allBlocks.length === 0 ? (
-        <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-4 text-sm text-slate-400">
-          No blocks solved yet — the moment you do, you'll see it here with a 🎉.
-        </div>
-      ) : (
-        <div className="overflow-x-auto rounded-lg border border-slate-800">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-900 text-slate-400 text-xs uppercase tracking-wide">
-              <tr>
-                <th className="px-3 py-2 text-left">Pool</th>
-                <th className="px-3 py-2 text-right">Height</th>
-                <th className="px-3 py-2 text-left">Hash</th>
-                <th className="px-3 py-2 text-left">Source</th>
-                <th className="px-3 py-2 text-right">When</th>
-              </tr>
-            </thead>
-            <tbody>
-              {allBlocks.map(({ pool, b }) => (
-                <tr key={`${pool.id}-${b.height}-${b.hash}`} className="border-t border-slate-800">
-                  <td className="px-3 py-2 font-mono text-xs text-amber-400">{pool.displayName}</td>
-                  <td className="px-3 py-2 text-right font-mono">{b.height.toLocaleString()}</td>
-                  <td className="px-3 py-2 font-mono text-xs text-slate-400 truncate max-w-[280px]" title={b.hash}>
-                    {b.hash.slice(0, 24)}…
-                  </td>
-                  <td className="px-3 py-2 text-xs text-slate-500">{b.source}</td>
-                  <td className="px-3 py-2 text-right text-slate-400">{formatAgo(b.ts)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
 
 export default async function PoolsOverview() {
   const pools = getEnabledPools();
@@ -177,7 +132,11 @@ export default async function PoolsOverview() {
         {summaries.map((s) => <PoolTile key={s.def.id} s={s} />)}
       </div>
 
-      <BlocksSection summaries={summaries} />
+      <div className="text-sm text-slate-400">
+        <Link href="/blocks" className="text-amber-400 hover:underline">
+          View solved-block log →
+        </Link>
+      </div>
     </div>
   );
 }

@@ -17,9 +17,16 @@ export interface PoolDef {
   ckpoolContainer: string;
   nodeContainer: string;
   stratumPort: number;
+  explorerBlock: (hash: string) => string;
 }
 
-const POOL_DEFS: Record<PoolId, Omit<PoolDef, "id">> = {
+const EXPLORERS: Record<PoolId, (h: string) => string> = {
+  bch: (h) => `https://blockchair.com/bitcoin-cash/block/${h}`,
+  btc: (h) => `https://blockchair.com/bitcoin/block/${h}`,
+  dgb: (h) => `https://digiexplorer.info/block/${h}`,
+};
+
+const POOL_DEFS: Record<PoolId, Omit<PoolDef, "id" | "explorerBlock">> = {
   bch: {
     displayName: "BCH",
     fullName: "Bitcoin Cash",
@@ -94,7 +101,7 @@ export function getEnabledPoolIds(): PoolId[] {
 export function getPool(id: PoolId): PoolDef {
   const def = POOL_DEFS[id];
   if (!def) throw new Error(`Unknown pool id: ${id}`);
-  return { id, ...def };
+  return { id, ...def, explorerBlock: EXPLORERS[id] };
 }
 
 export function getEnabledPools(): PoolDef[] {
