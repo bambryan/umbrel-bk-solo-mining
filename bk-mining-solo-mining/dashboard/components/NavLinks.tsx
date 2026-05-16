@@ -10,6 +10,7 @@ const LINKS: LinkDef[] = [
   { href: "/", label: "Overview" },
   { href: "/workers", label: "Workers" },
   { href: "/blocks", label: "Blocks" },
+  { href: "/profit", label: "Profit" },
   { href: "/admin", label: "Admin" },
 ];
 
