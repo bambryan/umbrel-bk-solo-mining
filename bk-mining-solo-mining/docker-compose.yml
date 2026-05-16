@@ -102,14 +102,11 @@ services:
       - default
 
   dashboard:
-    build:
-      context: ./dashboard
-      dockerfile: Dockerfile
+    # Image is pre-built on the host by scripts/build-dashboard.sh — compose
+    # never tries to pull or build. Umbrel runs docker compose from a working
+    # directory outside this app's dir (where the legacy-compat fragments
+    # live), so a relative build context here would resolve to the wrong path.
     image: bk-mining-solo-mining-dashboard:0.1.0
-    # Image is built locally (manually) — never try to pull or rebuild during
-    # normal start. "build" tells compose to always rebuild (slow), "missing"
-    # would try to pull first. "never" uses the local image and errors out if
-    # missing — we always pre-build before adding the app.
     pull_policy: never
     container_name: bk-mining-solo-mining-dashboard
     restart: unless-stopped
