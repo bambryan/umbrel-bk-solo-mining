@@ -27,7 +27,7 @@ fi
 # Solo-mining tuning. bitcoin.conf has these too, but specifying on the
 # command line guarantees they apply even if a future migration rewrites
 # the conf file.
-TUNING="-dbcache=2048 -rpcworkqueue=64 -rpcthreads=8"
+TUNING="-dbcache=6144-rpcworkqueue=64 -rpcthreads=8"
 
 echo "[btc-bitcoind] exec: bitcoind -datadir=/data -printtoconsole $TUNING $extra"
 exec bitcoind -datadir=/data -printtoconsole $TUNING $extra

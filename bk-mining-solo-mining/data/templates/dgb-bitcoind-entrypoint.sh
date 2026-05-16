@@ -21,7 +21,7 @@ fi
 
 # Same tuning as BCH/BTC — values come from bitcoin.conf too but command line
 # wins, so this guarantees them.
-TUNING="-dbcache=2048 -rpcworkqueue=64 -rpcthreads=8"
+TUNING="-dbcache=6144-rpcworkqueue=64 -rpcthreads=8"
 
 echo "[dgb-bitcoind] exec: digibyted -datadir=/data -printtoconsole $TUNING $extra"
 exec digibyted -datadir=/data -printtoconsole $TUNING $extra
