@@ -1,13 +1,17 @@
 version: "3.7"
 
+# Umbrel injects:
+#   networks.default → external umbrel_main_network (via common.yml fragment)
+#   services.app_proxy → image, ports, volumes (via app_proxy.yml fragment)
+# So we don't define `default` ourselves, and we declare app_proxy with only
+# the overrides Umbrel allows (env, container_name).
+
 services:
   app_proxy:
     environment:
       APP_HOST: bk-mining-solo-mining-dashboard
       APP_PORT: 3000
       JWT_SECRET: ${JWT_SECRET}
-    networks:
-      - umbrel_main_network
     container_name: bk-mining-solo-mining_app_proxy_1
 
   # One-shot service that renders the config templates into the real config
@@ -30,8 +34,6 @@ services:
         apk add --no-cache envsubst >/dev/null
         mkdir -p /data/bchn /data/ckpool/config /data/ckpool/www/pool /data/ckpool/www/users /data/templates
 
-        # Templates are baked into the image-data dir on install via APP_DATA_DIR
-        # On first boot we materialize them into the live config locations.
         if [ ! -f /data/bchn/bitcoin.conf ]; then
           envsubst < /data/templates/bitcoin.conf.template > /data/bchn/bitcoin.conf
         fi
@@ -39,9 +41,7 @@ services:
           envsubst < /data/templates/ckpool.conf.template > /data/ckpool/config/ckpool.conf
         fi
 
-        # Ownership: bchn + ckpool run as 1000:1000
         chown -R 1000:1000 /data/bchn /data/ckpool
-
         echo "[init] ready"
 
   bchn:
@@ -67,8 +67,6 @@ services:
       timeout: 10s
       retries: 20
       start_period: 2m
-    networks:
-      - default
 
   ckpool:
     image: ghcr.io/willitmod/wim-solo-ckpool:0.8.3-rc1-590fb2a
@@ -98,14 +96,8 @@ services:
         else
           echo "ckpool binary not found in image"; exit 1
         fi
-    networks:
-      - default
 
   dashboard:
-    # Image is pre-built on the host by scripts/build-dashboard.sh — compose
-    # never tries to pull or build. Umbrel runs docker compose from a working
-    # directory outside this app's dir (where the legacy-compat fragments
-    # live), so a relative build context here would resolve to the wrong path.
     image: bk-mining-solo-mining-dashboard:0.1.0
     pull_policy: never
     container_name: bk-mining-solo-mining-dashboard
@@ -128,13 +120,3 @@ services:
       - ${APP_DATA_DIR}/data/ckpool/www:/ckpool-www:ro
       - ${APP_DATA_DIR}/data/ckpool/config:/ckpool-config
       - /var/run/docker.sock:/var/run/docker.sock
-    networks:
-      - default
-      - umbrel_main_network
-
-networks:
-  default:
-    name: bk-mining-solo-mining_default
-  umbrel_main_network:
-    external: true
-    name: umbrel_main_network
