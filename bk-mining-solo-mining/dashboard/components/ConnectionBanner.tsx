@@ -1,0 +1,53 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
+// Top-of-page strip showing the stratum URL miners point at, with one-click
+// copy. Host comes from the browser's current location (so the URL always
+// matches however the user reached the dashboard — LAN IP, hostname,
+// reverse proxy, etc.). Port comes from /api/stratum.
+
+export function ConnectionBanner() {
+  const [port, setPort] = useState<number | null>(null);
+  const [host, setHost] = useState<string>("");
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    setHost(window.location.hostname);
+    fetch("/api/stratum", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d: { port: number }) => setPort(d.port))
+      .catch(() => setPort(4567));
+  }, []);
+
+  const url = host && port ? `stratum+tcp://${host}:${port}` : "";
+
+  async function onCopy() {
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // ignore — some browsers reject without HTTPS context
+    }
+  }
+
+  return (
+    <div className="border-b border-slate-800 bg-slate-900/40">
+      <div className="max-w-6xl mx-auto px-4 py-2 flex items-center gap-3 text-sm">
+        <span className="text-slate-400 hidden sm:inline">Point miners at</span>
+        <code className="flex-1 font-mono text-amber-400 truncate" title={url}>
+          {url || "loading…"}
+        </code>
+        <button
+          onClick={onCopy}
+          disabled={!url}
+          className="rounded-md border border-slate-700 hover:border-amber-500 hover:text-amber-400 px-3 py-1 text-xs disabled:opacity-50"
+        >
+          {copied ? "Copied!" : "Copy"}
+        </button>
+      </div>
+    </div>
+  );
+}

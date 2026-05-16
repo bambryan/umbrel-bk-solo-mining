@@ -32,7 +32,7 @@ services:
       - -ec
       - |
         apk add --no-cache envsubst >/dev/null
-        mkdir -p /data/bchn /data/ckpool/config /data/ckpool/www/pool /data/ckpool/www/users /data/templates
+        mkdir -p /data/bchn /data/ckpool/config /data/ckpool/www/pool /data/ckpool/www/users /data/templates /data/snapshots
 
         if [ ! -f /data/bchn/bitcoin.conf ]; then
           envsubst < /data/templates/bitcoin.conf.template > /data/bchn/bitcoin.conf
@@ -41,7 +41,7 @@ services:
           envsubst < /data/templates/ckpool.conf.template > /data/ckpool/config/ckpool.conf
         fi
 
-        chown -R 1000:1000 /data/bchn /data/ckpool
+        chown -R 1000:1000 /data/bchn /data/ckpool /data/snapshots
         echo "[init] ready"
 
   bchn:
@@ -116,7 +116,10 @@ services:
       CKPOOL_CONFIG_PATH: /ckpool-config/ckpool.conf
       CKPOOL_CONTAINER: bk-mining-solo-mining_ckpool_1
       BCHN_CONTAINER: bk-mining-solo-mining_bchn_1
+      STRATUM_PORT: "4567"
+      SNAPSHOTS_DIR: /snapshots
     volumes:
       - ${APP_DATA_DIR}/data/ckpool/www:/ckpool-www:ro
       - ${APP_DATA_DIR}/data/ckpool/config:/ckpool-config
+      - ${APP_DATA_DIR}/data/snapshots:/snapshots
       - /var/run/docker.sock:/var/run/docker.sock
