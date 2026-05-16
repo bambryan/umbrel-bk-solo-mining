@@ -8,8 +8,6 @@ type Props = { initial: PoolSettings; pool: "bch" | "btc" };
 const PRESET_NAMES = Object.keys(VARDIFF_PRESETS);
 const CUSTOM = "Custom";
 
-// Match the loaded mindiff/start/max against a preset name so the dropdown
-// shows the right value when the page first loads.
 function detectPreset(p: PoolSettings): string {
   for (const [name, cfg] of Object.entries(VARDIFF_PRESETS)) {
     if (p.mindiff === cfg.mindiff && p.startdiff === cfg.startdiff && p.maxdiff === cfg.maxdiff) {
@@ -19,15 +17,34 @@ function detectPreset(p: PoolSettings): string {
   return CUSTOM;
 }
 
+// Tracks the raw string for each diff input so the field can be temporarily
+// blank while the user types (without snapping back to "0"). On save we
+// re-parse to numbers. Auto-selects the field on focus so typing a new
+// number just overwrites the old one.
+type DiffKey = "mindiff" | "startdiff" | "maxdiff";
+
 export function PoolSettingsForm({ initial, pool }: Props) {
   const [s, setS] = useState<PoolSettings>(initial);
+  const [diffText, setDiffText] = useState({
+    mindiff: String(initial.mindiff),
+    startdiff: String(initial.startdiff),
+    maxdiff: String(initial.maxdiff),
+  });
   const [preset, setPreset] = useState<string>(detectPreset(initial));
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
 
   function update<K extends keyof PoolSettings>(k: K, v: PoolSettings[K]) {
     setS((cur) => ({ ...cur, [k]: v }));
-    if (k === "mindiff" || k === "startdiff" || k === "maxdiff") setPreset(CUSTOM);
+  }
+
+  function setDiff(k: DiffKey, raw: string) {
+    setDiffText((cur) => ({ ...cur, [k]: raw }));
+    setPreset(CUSTOM);
+    // Mirror the parsed number into state so the rest of the form sees it,
+    // but the input itself stays bound to the raw text.
+    const n = parseInt(raw, 10);
+    if (!isNaN(n) && n >= 0) update(k, n);
   }
 
   function applyPreset(name: string) {
@@ -36,16 +53,28 @@ export function PoolSettingsForm({ initial, pool }: Props) {
     const cfg = VARDIFF_PRESETS[name];
     if (!cfg) return;
     setS((cur) => ({ ...cur, ...cfg }));
+    setDiffText({
+      mindiff: String(cfg.mindiff),
+      startdiff: String(cfg.startdiff),
+      maxdiff: String(cfg.maxdiff),
+    });
   }
 
   async function onSave() {
     setSaving(true);
     setMsg(null);
     try {
+      // Re-parse final values from text in case the user typed but didn't blur.
+      const payload: PoolSettings = {
+        ...s,
+        mindiff: Math.max(0, parseInt(diffText.mindiff, 10) || 0),
+        startdiff: Math.max(0, parseInt(diffText.startdiff, 10) || 0),
+        maxdiff: Math.max(0, parseInt(diffText.maxdiff, 10) || 0),
+      };
       const res = await fetch(`/api/pool-settings?pool=${pool}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(s),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error(await res.text());
       setMsg({ kind: "ok", text: "Saved. ckpool restarting — miners will reconnect in seconds." });
@@ -58,7 +87,6 @@ export function PoolSettingsForm({ initial, pool }: Props) {
 
   return (
     <div className="space-y-6">
-      {/* Payout */}
       <div>
         <label className="block text-xs uppercase tracking-wide text-slate-400 mb-1">Payout address</label>
         <input
@@ -77,7 +105,6 @@ export function PoolSettingsForm({ initial, pool }: Props) {
         </p>
       </div>
 
-      {/* -B toggle */}
       <label className="flex items-start gap-3 cursor-pointer">
         <input
           type="checkbox"
@@ -94,19 +121,17 @@ export function PoolSettingsForm({ initial, pool }: Props) {
         </div>
       </label>
 
-      {/* Coinbase sig */}
       <div>
         <label className="block text-xs uppercase tracking-wide text-slate-400 mb-1">Coinbase signature</label>
         <input
           value={s.btcsig}
           onChange={(e) => update("btcsig", e.target.value)}
           className="w-full rounded-md bg-slate-950 border border-slate-700 px-3 py-2 font-mono text-sm focus:outline-none focus:ring-1 focus:ring-amber-500"
-          placeholder="/solo mined by BK/"
+          placeholder="/solo mined by BK Mining/"
         />
         <p className="text-xs text-slate-500 mt-1">Shows on block explorers next to your block's txid.</p>
       </div>
 
-      {/* Vardiff */}
       <div className="rounded-lg border border-slate-800 bg-slate-950/40 p-4 space-y-3">
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -126,37 +151,23 @@ export function PoolSettingsForm({ initial, pool }: Props) {
           </select>
         </div>
         <div className="grid grid-cols-3 gap-3">
-          <div>
-            <label className="block text-xs uppercase tracking-wide text-slate-400 mb-1">Min diff</label>
-            <input
-              type="number"
-              min={0}
-              value={s.mindiff}
-              onChange={(e) => update("mindiff", parseInt(e.target.value, 10) || 0)}
-              className="w-full rounded-md bg-slate-950 border border-slate-700 px-3 py-2 text-sm font-mono"
-            />
-          </div>
-          <div>
-            <label className="block text-xs uppercase tracking-wide text-slate-400 mb-1">Start diff</label>
-            <input
-              type="number"
-              min={0}
-              value={s.startdiff}
-              onChange={(e) => update("startdiff", parseInt(e.target.value, 10) || 0)}
-              className="w-full rounded-md bg-slate-950 border border-slate-700 px-3 py-2 text-sm font-mono"
-            />
-          </div>
-          <div>
-            <label className="block text-xs uppercase tracking-wide text-slate-400 mb-1">Max diff</label>
-            <input
-              type="number"
-              min={0}
-              value={s.maxdiff}
-              onChange={(e) => update("maxdiff", parseInt(e.target.value, 10) || 0)}
-              className="w-full rounded-md bg-slate-950 border border-slate-700 px-3 py-2 text-sm font-mono"
-            />
-            <p className="text-xs text-slate-500 mt-1">0 = no upper limit.</p>
-          </div>
+          {(["mindiff", "startdiff", "maxdiff"] as const).map((k) => (
+            <div key={k}>
+              <label className="block text-xs uppercase tracking-wide text-slate-400 mb-1">
+                {k === "mindiff" ? "Min diff" : k === "startdiff" ? "Start diff" : "Max diff"}
+              </label>
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={diffText[k]}
+                onChange={(e) => setDiff(k, e.target.value.replace(/[^0-9]/g, ""))}
+                onFocus={(e) => e.target.select()}
+                className="w-full rounded-md bg-slate-950 border border-slate-700 px-3 py-2 text-sm font-mono"
+              />
+              {k === "maxdiff" && <p className="text-xs text-slate-500 mt-1">0 = no upper limit.</p>}
+            </div>
+          ))}
         </div>
       </div>
 

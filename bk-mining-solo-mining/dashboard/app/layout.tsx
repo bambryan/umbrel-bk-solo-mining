@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { ConnectionBanner } from "@/components/ConnectionBanner";
-import { PoolSwitcher } from "@/components/PoolSwitcher";
 import { NavLinks } from "@/components/NavLinks";
-import { getEnabledPools } from "@/lib/poolRegistry";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -12,16 +10,13 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const pools = getEnabledPools().map((p) => ({ id: p.id, label: p.displayName }));
-  const showSwitcher = pools.length > 1;
-
   return (
     <html lang="en">
       <body className="min-h-screen flex flex-col">
         <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-10">
           <div className="max-w-6xl mx-auto px-4 py-2 sm:py-3">
-            {/* Two rows on narrow screens (logo+title on top, nav+switcher
-                below); one row on wider screens (everything inline). */}
+            {/* Pool selection now happens by tapping a tile on /pools — no
+                per-page switcher needed. Header just has logo + nav. */}
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
               <div className="flex items-center gap-3 min-w-0">
                 <img src="/logo.png" alt="" width={36} height={36} className="rounded-md shrink-0" />
@@ -30,11 +25,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Suspense fallback={null}>
                 <NavLinks />
               </Suspense>
-              {showSwitcher && (
-                <Suspense fallback={null}>
-                  <PoolSwitcher pools={pools} />
-                </Suspense>
-              )}
             </div>
           </div>
         </header>
