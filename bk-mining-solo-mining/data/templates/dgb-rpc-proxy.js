@@ -56,12 +56,25 @@ function rewriteBody(bodyStr) {
   return JSON.stringify(Array.isArray(body) ? items : items[0]);
 }
 
-const server = http.createServer((req, res) => {
+// Verbose request/response logging. Off by default — flip via env var
+// DGB_PROXY_DEBUG=1 when diagnosing template / submit issues.
+const DEBUG = process.env.DGB_PROXY_DEBUG === "1";
+
+// ckpool's HTTP client sends requests with bare LF line endings instead of
+// CRLF. Node's strict parser rejects them with HPE_INVALID_VERSION before our
+// handler sees them. insecureHTTPParser=true switches to llhttp's permissive
+// mode (and bypasses some related strictness). Safe here because we're
+// localhost-only and the upstream (digibyted) is already permissive.
+const server = http.createServer({ insecureHTTPParser: true }, (req, res) => {
   const chunks = [];
   req.on("data", (c) => chunks.push(c));
   req.on("end", () => {
     const inBody = Buffer.concat(chunks).toString("utf8");
     const outBody = inBody ? rewriteBody(inBody) : "";
+    if (DEBUG) {
+      console.log(`[proxy] IN ${req.method} ${req.url} len=${inBody.length} :: ${inBody.slice(0, 200)}`);
+      if (inBody !== outBody) console.log(`[proxy] OUT len=${outBody.length} :: ${outBody.slice(0, 200)}`);
+    }
 
     // Strip headers that depend on body content. Node sets these correctly
     // when we write the new body.
@@ -77,7 +90,18 @@ const server = http.createServer((req, res) => {
       path: req.url,
       headers: { ...fwdHeaders, "content-length": Buffer.byteLength(outBody) },
     }, (upstreamRes) => {
-      // Stream the response straight back.
+      if (DEBUG) {
+        const upChunks = [];
+        upstreamRes.on("data", (c) => upChunks.push(c));
+        upstreamRes.on("end", () => {
+          const respBody = Buffer.concat(upChunks);
+          console.log(`[proxy] RESP ${upstreamRes.statusCode} len=${respBody.length} :: ${respBody.toString("utf8").slice(0, 200)}`);
+          res.writeHead(upstreamRes.statusCode || 502, upstreamRes.headers);
+          res.end(respBody);
+        });
+        return;
+      }
+      // Non-debug fast path: stream upstream straight back.
       res.writeHead(upstreamRes.statusCode || 502, upstreamRes.headers);
       upstreamRes.pipe(res);
     });
@@ -99,6 +123,16 @@ const server = http.createServer((req, res) => {
   req.on("error", (err) => {
     console.error(`[proxy] req error: ${err.message}`);
   });
+});
+
+// Catch malformed requests that Node's HTTP parser rejects before our handler
+// sees them. Without this listener Node sends an opaque 400 with no logging,
+// which is exactly what was happening with ckpool's libcurl-style requests.
+server.on("clientError", (err, socket) => {
+  const peek = socket.read ? socket.read() : null;
+  console.error(`[proxy] clientError: ${err.code || ""} ${err.message}` +
+    (peek ? ` :: first bytes ${peek.toString("utf8").slice(0, 120).replace(/[\r\n]/g, "\\n")}` : ""));
+  try { socket.end("HTTP/1.1 400 Bad Request\r\n\r\n"); } catch { /* ignore */ }
 });
 
 server.listen(LISTEN_PORT, "0.0.0.0", () => {
