@@ -1,4 +1,4 @@
-import { getUsers, getWorkers, parseHashrate, formatHashrate, formatAgo } from "@/lib/ckpool";
+import { getUsers, getWorkers, parseHashrate, formatHashrate, formatSI, formatAgo } from "@/lib/ckpool";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -30,8 +30,8 @@ export default async function WorkersPage() {
             <div className="text-sm text-slate-300 mt-1">
               {formatHashrate(parseHashrate(u.stats.hashrate1m))} (1m) ·{" "}
               {formatHashrate(parseHashrate(u.stats.hashrate1hr))} (1h) ·{" "}
-              {u.stats.workers} workers ·{" "}
-              best ever {u.stats.bestever?.toLocaleString() ?? "—"}
+              {u.workers.length} workers ·{" "}
+              best ever {formatSI(u.stats.bestever)}
             </div>
           </header>
           <div className="overflow-x-auto rounded-lg border border-slate-800">
@@ -66,7 +66,7 @@ export default async function WorkersPage() {
                         <td className="px-3 py-2 text-right">{formatHashrate(parseHashrate(w.hashrate5m))}</td>
                         <td className="px-3 py-2 text-right">{formatHashrate(parseHashrate(w.hashrate1hr))}</td>
                         <td className="px-3 py-2 text-right">{formatHashrate(parseHashrate(w.hashrate1d))}</td>
-                        <td className="px-3 py-2 text-right">{w.bestshare?.toLocaleString() ?? "—"}</td>
+                        <td className="px-3 py-2 text-right">{formatSI(w.bestshare)}</td>
                         <td className="px-3 py-2 text-right text-slate-400">
                           {formatAgo(w.lastshare)}
                         </td>

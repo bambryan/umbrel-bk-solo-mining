@@ -1,4 +1,4 @@
-import { getPoolStats, parseHashrate, formatHashrate, formatAgo } from "@/lib/ckpool";
+import { getPoolStats, parseHashrate, formatHashrate, formatSI, formatAgo } from "@/lib/ckpool";
 import { getBlockchainInfo, getNetworkInfo, getMempoolInfo } from "@/lib/bchn";
 
 export const dynamic = "force-dynamic";
@@ -55,9 +55,9 @@ export default async function Overview() {
       <section>
         <h2 className="text-lg font-semibold mb-3 text-slate-200">Shares</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <StatCard label="Accepted" value={poolStats ? poolStats.accepted.toLocaleString() : "—"} />
-          <StatCard label="Rejected" value={poolStats ? poolStats.rejected.toLocaleString() : "—"} />
-          <StatCard label="Best share" value={poolStats ? poolStats.bestshare.toLocaleString() : "—"} />
+          <StatCard label="Accepted" value={formatSI(poolStats?.accepted)} sub={poolStats ? poolStats.accepted.toLocaleString() : undefined} />
+          <StatCard label="Rejected" value={formatSI(poolStats?.rejected)} sub={poolStats ? poolStats.rejected.toLocaleString() : undefined} />
+          <StatCard label="Best share" value={formatSI(poolStats?.bestshare)} sub={poolStats ? poolStats.bestshare.toLocaleString() : undefined} />
           <StatCard label="SPS (1m)" value={poolStats ? poolStats.SPS1m.toFixed(2) : "—"} />
         </div>
       </section>
@@ -72,7 +72,8 @@ export default async function Overview() {
           />
           <StatCard
             label="Network difficulty"
-            value={bchInfo ? bchInfo.difficulty.toExponential(3) : "—"}
+            value={formatSI(bchInfo?.difficulty)}
+            sub={bchInfo ? bchInfo.difficulty.toExponential(3) : undefined}
           />
           <StatCard
             label="Network hashrate"

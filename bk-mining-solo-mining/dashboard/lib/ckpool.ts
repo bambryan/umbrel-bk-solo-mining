@@ -52,13 +52,24 @@ export interface UserStats {
   bestshare: number;
   bestever: number;
   authorised: number;
+  // Newer ckpool builds embed the per-worker array directly in the user file
+  // instead of writing a separate <addr>.workers file.
+  worker?: WorkerStats[];
 }
 
-// ckpool writes JSON lines (one JSON object per line). For pool.status it's 3
-// lines: counts/hashrate/shares. For workers it's a header line + N worker
-// rows. We just concat into one object for counts/hashrate/shares files, and
-// return an array for workers.
-function parseConcatJson<T = Record<string, unknown>>(text: string): T {
+// ckpool emits two different JSON shapes:
+//   1. pool.status — three CONCATENATED single-line JSON objects (counts /
+//      hashrate / shares). Merging them into one object is correct.
+//   2. users/<addr> — a single PRETTY-PRINTED multi-line JSON object with an
+//      embedded "worker": [...] array.
+// We try whole-file JSON first; if that fails, fall back to line-by-line
+// concat-merge so both shapes work.
+function parseStats<T = Record<string, unknown>>(text: string): T {
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    // not a single JSON object — fall through
+  }
   const acc: Record<string, unknown> = {};
   for (const line of text.split(/\r?\n/)) {
     const s = line.trim();
@@ -68,16 +79,6 @@ function parseConcatJson<T = Record<string, unknown>>(text: string): T {
   return acc as T;
 }
 
-function parseJsonLines<T = Record<string, unknown>>(text: string): T[] {
-  const out: T[] = [];
-  for (const line of text.split(/\r?\n/)) {
-    const s = line.trim();
-    if (!s) continue;
-    try { out.push(JSON.parse(s) as T); } catch { /* skip */ }
-  }
-  return out;
-}
-
 async function readOrNull(p: string): Promise<string | null> {
   try { return await fs.readFile(p, "utf8"); } catch { return null; }
 }
@@ -85,7 +86,7 @@ async function readOrNull(p: string): Promise<string | null> {
 export async function getPoolStats(): Promise<PoolStats | null> {
   const text = await readOrNull(path.join(WWW_DIR, "pool", "pool.status"));
   if (!text) return null;
-  return parseConcatJson<PoolStats>(text);
+  return parseStats<PoolStats>(text);
 }
 
 export async function getUsers(): Promise<{ address: string; stats: UserStats }[]> {
@@ -97,15 +98,28 @@ export async function getUsers(): Promise<{ address: string; stats: UserStats }[
     if (entry.endsWith(".workers")) continue;
     const text = await readOrNull(path.join(usersDir, entry));
     if (!text) continue;
-    results.push({ address: entry, stats: parseConcatJson<UserStats>(text) });
+    results.push({ address: entry, stats: parseStats<UserStats>(text) });
   }
   return results;
 }
 
 export async function getWorkers(address: string): Promise<WorkerStats[]> {
+  // Prefer the embedded worker[] array in the user file (newer ckpool builds).
+  // Fall back to the legacy <addr>.workers file if the embedded form is absent.
+  const userText = await readOrNull(path.join(WWW_DIR, "users", address));
+  if (userText) {
+    const stats = parseStats<UserStats>(userText);
+    if (Array.isArray(stats.worker)) return stats.worker;
+  }
   const text = await readOrNull(path.join(WWW_DIR, "users", `${address}.workers`));
   if (!text) return [];
-  return parseJsonLines<WorkerStats>(text);
+  const out: WorkerStats[] = [];
+  for (const line of text.split(/\r?\n/)) {
+    const s = line.trim();
+    if (!s) continue;
+    try { out.push(JSON.parse(s) as WorkerStats); } catch { /* skip */ }
+  }
+  return out;
 }
 
 export async function getAllWorkers(): Promise<WorkerStats[]> {
@@ -117,10 +131,11 @@ export async function getAllWorkers(): Promise<WorkerStats[]> {
   return all;
 }
 
-// Convert "132T", "5.5G", "65.7P" → number of hashes/sec
-export function parseHashrate(h: string | undefined): number {
-  if (!h) return 0;
-  const m = /^([\d.]+)\s*([KMGTPE])?$/i.exec(h.trim());
+// Parse "132T", "5.5G", "65.7P", or a plain number → hashes/sec
+export function parseHashrate(h: string | number | undefined): number {
+  if (h == null) return 0;
+  if (typeof h === "number") return h;
+  const m = /^([\d.]+)\s*([KMGTPE])?$/i.exec(String(h).trim());
   if (!m) return 0;
   const n = parseFloat(m[1]);
   const unit = (m[2] || "").toUpperCase();
@@ -138,6 +153,21 @@ export function formatHashrate(hps: number): string {
   if (hps >= 1e6) return (hps / 1e6).toFixed(2) + " MH/s";
   if (hps >= 1e3) return (hps / 1e3).toFixed(2) + " KH/s";
   return hps.toFixed(0) + " H/s";
+}
+
+// Format a large unitless number with SI suffix (matches ckpool's style for
+// shares + best-share + difficulty: e.g. 36,314,947,747 → 36.3G,
+// 7.487e+11 → 748G).
+export function formatSI(n: number | undefined, digits = 1): string {
+  if (n == null || !isFinite(n)) return "—";
+  const abs = Math.abs(n);
+  if (abs >= 1e18) return (n / 1e18).toFixed(digits) + "E";
+  if (abs >= 1e15) return (n / 1e15).toFixed(digits) + "P";
+  if (abs >= 1e12) return (n / 1e12).toFixed(digits) + "T";
+  if (abs >= 1e9) return (n / 1e9).toFixed(digits) + "G";
+  if (abs >= 1e6) return (n / 1e6).toFixed(digits) + "M";
+  if (abs >= 1e3) return (n / 1e3).toFixed(digits) + "K";
+  return n.toFixed(0);
 }
 
 export function formatAgo(unixSec: number | undefined): string {
