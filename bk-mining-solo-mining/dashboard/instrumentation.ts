@@ -16,6 +16,21 @@ export async function register(): Promise<void> {
   // fs + dockerode-adjacent code that's strictly server-side.
   const { sample } = await import("./lib/sampler");
 
+  // Reconcile containers against the enable list before the first sample.
+  // On a fresh install, compose creates all pool services but the state
+  // file (auto-initialized empty) tells us to stop everything except
+  // app_proxy/dashboard/init — done once at boot, then on every user
+  // enable/disable through the API routes.
+  try {
+    const { getEnabledPoolIdsFromState } = await import("./lib/poolEnabled");
+    const { reconcileAllPools } = await import("./lib/poolControl");
+    const enabled = await getEnabledPoolIdsFromState();
+    await reconcileAllPools(enabled);
+    console.log(`[instrumentation] reconciled pools, enabled=${enabled.join(",") || "(none)"}`);
+  } catch (e) {
+    console.warn("[instrumentation] reconcile failed:", e instanceof Error ? e.message : e);
+  }
+
   // Fire immediately so the first row exists before the UI asks for it.
   sample().catch((e) => console.error("[instrumentation] initial sample threw:", e));
   setInterval(() => {

@@ -1,6 +1,8 @@
+import { redirect } from "next/navigation";
 import { getUsers, getWorkers } from "@/lib/ckpool";
 import { parseHashrate, formatHashrate, formatSI } from "@/lib/format";
 import { parsePoolId, getPool } from "@/lib/poolRegistry";
+import { getEnabledPoolIdsFromState } from "@/lib/poolEnabled";
 import { WorkerRow } from "@/components/WorkerRow";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +12,10 @@ type PageProps = { searchParams: Promise<{ pool?: string }> };
 
 export default async function WorkersPage({ searchParams }: PageProps) {
   const sp = await searchParams;
-  const pool = parsePoolId(sp.pool);
+  const enabledIds = await getEnabledPoolIdsFromState();
+  if (enabledIds.length === 0) redirect("/pools");
+  const requested = parsePoolId(sp.pool);
+  const pool = enabledIds.includes(requested) ? requested : enabledIds[0];
   const poolDef = getPool(pool);
 
   const users = await getUsers(pool);

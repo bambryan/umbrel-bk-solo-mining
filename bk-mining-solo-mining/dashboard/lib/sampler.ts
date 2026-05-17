@@ -2,6 +2,7 @@ import { getPoolStats, parseHashrate } from "./ckpool";
 import { getBlockchainInfo } from "./bchn";
 import { appendSample, trimIfNeeded, type Sample } from "./history";
 import { getEnabledPoolIds, type PoolId } from "./poolRegistry";
+import { getEnabledPoolIdsFromState } from "./poolEnabled";
 import { watchOnce as watchBlocksOnce } from "./blocksWatcher";
 
 // One sample per enabled pool. Failures on a per-pool basis are isolated —
@@ -51,7 +52,12 @@ async function sampleOne(pool: PoolId): Promise<void> {
 // then run the blocks watcher (which scans ckpool logs + verifies recent
 // chain blocks for coinbase matches to our payout addresses).
 export async function sample(): Promise<void> {
-  for (const pool of getEnabledPoolIds()) {
+  // Intersection: pool must be in the universe (POOLS env) AND opted into
+  // by the user (state file). Skip disabled pools so we don't log RPC
+  // errors for stopped containers.
+  const universe = new Set<PoolId>(getEnabledPoolIds());
+  const enabled = (await getEnabledPoolIdsFromState()).filter((p) => universe.has(p));
+  for (const pool of enabled) {
     await sampleOne(pool);
   }
   try {

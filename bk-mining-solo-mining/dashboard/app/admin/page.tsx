@@ -1,5 +1,7 @@
+import { redirect } from "next/navigation";
 import { getPoolSettings } from "@/lib/ckpoolConfig";
 import { parsePoolId, getPool } from "@/lib/poolRegistry";
+import { getEnabledPoolIdsFromState } from "@/lib/poolEnabled";
 import { PoolSettingsForm } from "./PoolSettingsForm";
 import { RestartButton } from "./RestartButton";
 import { LogsViewer } from "./LogsViewer";
@@ -11,7 +13,10 @@ type PageProps = { searchParams: Promise<{ pool?: string }> };
 
 export default async function AdminPage({ searchParams }: PageProps) {
   const sp = await searchParams;
-  const pool = parsePoolId(sp.pool);
+  const enabledIds = await getEnabledPoolIdsFromState();
+  if (enabledIds.length === 0) redirect("/pools");
+  const requested = parsePoolId(sp.pool);
+  const pool = enabledIds.includes(requested) ? requested : enabledIds[0];
   const poolDef = getPool(pool);
   const settings = await getPoolSettings(pool).catch(() => null);
   const nodeLabel = pool === "btc" ? "bitcoind" : "bchn";

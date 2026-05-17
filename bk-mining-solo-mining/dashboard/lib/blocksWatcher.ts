@@ -13,6 +13,7 @@
 
 import Docker from "dockerode";
 import { getPool, type PoolId, getEnabledPoolIds } from "./poolRegistry";
+import { getEnabledPoolIdsFromState } from "./poolEnabled";
 import { readConfig } from "./ckpoolConfig";
 import { appendBlock, hasBlock, type BlockEvent } from "./blocks";
 
@@ -156,7 +157,11 @@ async function verifyChainForPool(pool: PoolId, lookback = 20): Promise<number> 
 }
 
 export async function watchOnce(): Promise<void> {
-  for (const pool of getEnabledPoolIds()) {
+  // Skip disabled pools — their containers are down so log scans + RPC
+  // verifies would just spam errors. State file is the source of truth.
+  const universe = new Set<PoolId>(getEnabledPoolIds());
+  const enabled = (await getEnabledPoolIdsFromState()).filter((p) => universe.has(p));
+  for (const pool of enabled) {
     try { await scanLogsForPool(pool); }
     catch (e) { console.warn(`[blocksWatcher:${pool}] log scan failed: ${e instanceof Error ? e.message : e}`); }
     try { await verifyChainForPool(pool); }

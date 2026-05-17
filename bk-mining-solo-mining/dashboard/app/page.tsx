@@ -1,8 +1,10 @@
 import { Suspense } from "react";
+import { redirect } from "next/navigation";
 import { getPoolStats, parseHashrate, formatHashrate, formatSI, formatAgo } from "@/lib/ckpool";
 import { getBlockchainInfo, getNetworkInfo, getMempoolInfo } from "@/lib/bchn";
 import { readSeries, parseWindow } from "@/lib/history";
 import { parsePoolId, getPool } from "@/lib/poolRegistry";
+import { getEnabledPoolIdsFromState } from "@/lib/poolEnabled";
 import { readBlocks } from "@/lib/blocks";
 import { SparkCard } from "@/components/SparkCard";
 import { WindowSelector } from "@/components/WindowSelector";
@@ -34,7 +36,15 @@ type PageProps = { searchParams: Promise<{ w?: string; pool?: string }> };
 export default async function Overview({ searchParams }: PageProps) {
   const sp = await searchParams;
   const windowSec = parseWindow(sp.w);
-  const pool = parsePoolId(sp.pool);
+
+  // Funnel users to /pools when no pool is enabled (fresh install) — the
+  // welcome screen lives there. If they ask for a specific ?pool= that's
+  // not enabled, fall back to the first enabled pool so charts stay
+  // meaningful instead of all-zero.
+  const enabledIds = await getEnabledPoolIdsFromState();
+  if (enabledIds.length === 0) redirect("/pools");
+  const requested = parsePoolId(sp.pool);
+  const pool = enabledIds.includes(requested) ? requested : enabledIds[0];
   const poolDef = getPool(pool);
 
   const [poolRes, infoRes, netRes, mempoolRes] = await Promise.allSettled([

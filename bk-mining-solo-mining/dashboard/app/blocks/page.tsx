@@ -1,5 +1,6 @@
 import { readBlocks, type BlockEvent } from "@/lib/blocks";
 import { getEnabledPools, parsePoolId, type PoolDef } from "@/lib/poolRegistry";
+import { getEnabledPoolIdsFromState } from "@/lib/poolEnabled";
 import { formatAgo } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +24,10 @@ export default async function BlocksPage({ searchParams }: PageProps) {
   // 'all' (default) shows every pool; otherwise narrows to one.
   const showAll = !sp.pool || sp.pool === "all";
   const focusPool = showAll ? null : parsePoolId(sp.pool);
-  const pools = getEnabledPools();
+  // Filter universe by user-enabled state — disabled pools shouldn't have
+  // their old block history surfaced here.
+  const enabledIds = new Set(await getEnabledPoolIdsFromState());
+  const pools = getEnabledPools().filter((p) => enabledIds.has(p.id));
   const visiblePools = focusPool ? pools.filter((p) => p.id === focusPool) : pools;
 
   // Pull up to 200 blocks per pool (more than enough at solo rates).
