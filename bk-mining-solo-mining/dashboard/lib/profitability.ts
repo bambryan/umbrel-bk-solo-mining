@@ -38,9 +38,10 @@ const FALLBACK_REWARD: Record<PoolId, number> = {
   // Post-April-2024 halving
   bch: 3.125,
   btc: 3.125,
-  // DGB SHA-256d reward per block (per algo). Schedule: started 8000 DGB,
-  // halves every ~2 years. Currently around 535 DGB. Best-effort fallback.
-  dgb: 535,
+  // DGB SHA-256d reward per block (per algo). Verified empirically from
+  // block 23,504,705 (our first solo solve): 265.20 DGB. Reflects current
+  // post-halving subsidy + typical fees.
+  dgb: 265.2,
 };
 
 async function getRecentBlockReward(pool: PoolId): Promise<number | null> {
