@@ -246,8 +246,12 @@ services:
       - /ckpool-entrypoint.sh
 
   dashboard:
-    image: bk-mining-solo-mining-dashboard:0.1.0
-    pull_policy: never
+    # Published from the dashboard/ source on every release. Built and
+    # pushed manually for now — bump the tag here when you push a new
+    # version. Umbrel updates do `docker compose pull` against this
+    # registry, which is why the image must live somewhere public, not
+    # just as a locally-built tag.
+    image: ghcr.io/bambryan/bk-mining-dashboard:0.2.0
     container_name: bk-mining-solo-mining-dashboard
     restart: unless-stopped
     # The dashboard runs as uid 1001 (nextjs user from its Dockerfile). To
