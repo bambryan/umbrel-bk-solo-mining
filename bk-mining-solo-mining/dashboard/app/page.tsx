@@ -1,5 +1,4 @@
 import { Suspense } from "react";
-import Link from "next/link";
 import { getPoolStats, parseHashrate, formatHashrate, formatSI, formatAgo } from "@/lib/ckpool";
 import { getBlockchainInfo, getNetworkInfo, getMempoolInfo } from "@/lib/bchn";
 import { readSeries, parseWindow } from "@/lib/history";
@@ -7,6 +6,7 @@ import { parsePoolId, getPool } from "@/lib/poolRegistry";
 import { readBlocks } from "@/lib/blocks";
 import { SparkCard } from "@/components/SparkCard";
 import { WindowSelector } from "@/components/WindowSelector";
+import { BlockSolvedBanner } from "@/components/BlockSolvedBanner";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -93,27 +93,13 @@ export default async function Overview({ searchParams }: PageProps) {
       )}
 
       {mostRecent && (
-        <Link
-          href={`/blocks?pool=${pool}`}
-          className="block rounded-md border border-amber-500/60 bg-gradient-to-r from-amber-500/15 to-amber-500/5 px-4 py-3 hover:border-amber-400 transition-colors"
-        >
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div>
-              <div className="text-amber-300 font-semibold">
-                🎉 Block solved! #{mostRecent.height.toLocaleString()}
-                {oursBlocks.length > 1 && (
-                  <span className="text-amber-400/80 text-sm font-normal ml-2">
-                    ({oursBlocks.length} total)
-                  </span>
-                )}
-              </div>
-              <div className="text-xs text-amber-200/70 mt-0.5 font-mono">
-                {mostRecent.hash.slice(0, 32)}… · {formatAgo(mostRecent.ts)}
-              </div>
-            </div>
-            <span className="text-xs text-amber-400">View all →</span>
-          </div>
-        </Link>
+        <BlockSolvedBanner
+          pool={pool}
+          height={mostRecent.height}
+          hash={mostRecent.hash}
+          ts={mostRecent.ts}
+          totalSolved={oursBlocks.length}
+        />
       )}
 
       <section>
