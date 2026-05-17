@@ -2,26 +2,44 @@ manifestVersion: 1
 id: bk-mining-solo-mining
 category: bitcoin
 name: BK Solo Mining
-version: "0.1.0"
-tagline: Solo BCH mining — BCHN + ckpool + dashboard
+version: "0.2.0"
+tagline: Solo mining for BCH, BTC, and DGB — full nodes + ckpool + dashboard
 icon: https://raw.githubusercontent.com/bambryan/umbrel-bk-solo-mining/main/bk-mining-solo-mining/icon.png
 description: >-
-  Full Bitcoin Cash node (BCHN) plus ckpool configured for solo mining,
-  with a Next.js dashboard that shows pool hashrate, worker breakdown,
-  network difficulty, and lets you change the coinbase signature, restart
-  ckpool, and tail logs without ssh.
+  Run your own solo mining pool for Bitcoin Cash, Bitcoin, and DigiByte on
+  your Umbrel. Each coin gets a full node (BCHN / Bitcoin Core / DigiByte)
+  plus a dedicated ckpool instance. Coinbase rewards for solved blocks are
+  paid directly to the address you configure — zero pool fees, zero
+  middlemen.
 
 
-  Coinbase rewards for solved blocks are paid directly to the BCH address
-  configured in ckpool.conf — no pool fees.
+  Comes with a Next.js dashboard that shows pool hashrate (1m/1h/1d
+  sparklines), worker breakdown, network difficulty, profitability per
+  coin, a unified solved-block log, and live ckpool/node log tailing. All
+  admin (payout address, coinbase signature, vardiff, restart, enable /
+  disable a coin) is doable from the UI — no ssh required.
 
 
-  Stratum is exposed on TCP 4567. Point miners at `stratum+tcp://<your-umbrel-ip>:4567`
-  with any BCH address as the username.
+  Pick one coin or run all three. Disabling a coin stops its containers
+  but preserves chain data, so you can switch on a coin any time without
+  resyncing.
+
+
+  Stratum endpoints — point your SHA-256 miners at:
+  BCH `stratum+tcp://<umbrel-ip>:4567`,
+  BTC `stratum+tcp://<umbrel-ip>:7890`,
+  DGB `stratum+tcp://<umbrel-ip>:5678`.
+  Use any address for that coin as the username.
 releaseNotes: >-
-  Initial release. Forked from a previous third-party Umbrel community app
-  so config tunings (dbcache, rpcworkqueue, rpcthreads) can no longer be
-  silently overwritten by an upstream update.
+  0.2.0 — Multi-coin release. Added BTC (Bitcoin Core) and DGB (DigiByte)
+  alongside BCH. New /pools dashboard with per-coin tiles, /blocks log
+  unified across all three pools, /profit tab with live $/day estimates,
+  and a first-run wizard that lets you opt into coins one at a time
+  (disabled coins keep their chain data but stop their containers).
+  DGB SHA-256 mining works against digibyted via a transparent RPC proxy
+  that injects the correct algo tag — solo blocks pay out cleanly. Fix
+  for ckpool sending bare-LF HTTP that Node's strict parser was
+  rejecting. Block-solved banner with celebration + 24h auto-fade.
 developer: Bryan Kilgore
 website: https://github.com/bambryan/umbrel-bk-solo-mining
 submitter: Bryan Kilgore
