@@ -68,7 +68,13 @@ export default async function Overview({ searchParams }: PageProps) {
       readBlocks(pool, 100).catch(() => []),
     ]);
   const oursBlocks = allBlocks.filter((b) => b.ours);
-  const mostRecent = oursBlocks[0]; // readBlocks returns newest first
+  const newest = oursBlocks[0]; // readBlocks returns newest first
+  // Only show the celebration banner for blocks solved in the last 24h. The
+  // Blocks-solved StatCard below stays regardless, so the count is never lost.
+  const CELEBRATE_WINDOW_SEC = 24 * 60 * 60;
+  const mostRecent = newest && (Math.floor(Date.now() / 1000) - newest.ts) < CELEBRATE_WINDOW_SEC
+    ? newest
+    : null;
 
   const nothingFromNode = nodeInfo == null;
 
