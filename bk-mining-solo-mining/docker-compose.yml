@@ -251,7 +251,7 @@ services:
     # version. Umbrel updates do `docker compose pull` against this
     # registry, which is why the image must live somewhere public, not
     # just as a locally-built tag.
-    image: ghcr.io/bambryan/bk-mining-dashboard:0.2.0
+    image: ghcr.io/bambryan/bk-mining-dashboard:0.2.2
     container_name: bk-mining-solo-mining-dashboard
     restart: unless-stopped
     # The dashboard runs as uid 1001 (nextjs user from its Dockerfile). To

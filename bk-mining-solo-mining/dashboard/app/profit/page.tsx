@@ -27,6 +27,9 @@ function fmtPct(p: number): string {
 export default async function ProfitPage() {
   const profits = await computeAllProfits();
 
+  // Total hashrate is the same on every row (sum across all pools).
+  const totalHashrate = profits[0]?.totalHashrate ?? 0;
+
   // Rank by $/day (best first); only meaningful pools.
   const ranked = profits
     .filter((p) => p.available)
@@ -42,9 +45,11 @@ export default async function ProfitPage() {
       <header>
         <h1 className="text-lg font-semibold text-slate-200">Profitability</h1>
         <p className="text-sm text-slate-400 mt-1">
-          Expected USD/day per coin at your current hashrate. <span className="text-amber-400/80">Honest caveat:</span>{" "}
-          solo mining variance is huge — these are statistical averages, not guaranteed earnings. Useful for picking
-          where to point rigs when conditions shift.
+          Expected USD/day per coin <span className="text-slate-300">if you pointed all your SHA-256d
+          hashpower at it</span>. We sum the hashrate connected across every pool ({" "}
+          <span className="font-mono text-slate-300">{formatHashrate(totalHashrate)}</span> right now) and run that
+          total against each coin&apos;s difficulty. <span className="text-amber-400/80">Honest caveat:</span>{" "}
+          solo mining variance is huge — these are statistical averages, not guaranteed earnings.
         </p>
       </header>
 
@@ -61,7 +66,7 @@ export default async function ProfitPage() {
             )}
           </div>
           <div className="text-xs text-amber-200/70 mt-1">
-            Point your SHA-256d rigs at <code className="text-amber-300">stratum+tcp://&lt;host&gt;:{
+            Point all SHA-256d rigs at <code className="text-amber-300">stratum+tcp://&lt;host&gt;:{
               winner.pool === "bch" ? "4567" : winner.pool === "btc" ? "7890" : "5678"
             }</code> for max expected return.
           </div>
@@ -73,17 +78,17 @@ export default async function ProfitPage() {
           <thead className="bg-slate-900 text-slate-400 text-xs uppercase tracking-wide">
             <tr>
               <th className="px-3 py-2 text-left">Coin</th>
-              <th className="px-3 py-2 text-right">Your hashrate (1h)</th>
+              <th className="px-3 py-2 text-right">Connected here</th>
+              <th className="px-3 py-2 text-right">Difficulty</th>
               <th className="px-3 py-2 text-right">Network hash</th>
-              <th className="px-3 py-2 text-right">Your share</th>
+              <th className="px-3 py-2 text-right">Your share*</th>
               <th className="px-3 py-2 text-right">Block reward</th>
               <th className="px-3 py-2 text-right">Price (24h)</th>
-              <th className="px-3 py-2 text-right">$/day (est)</th>
+              <th className="px-3 py-2 text-right">$/day (est)*</th>
             </tr>
           </thead>
           <tbody>
             {profits.map((p) => {
-              const share = p.networkHashrate > 0 ? (p.hashrate1h / p.networkHashrate) : 0;
               const isWinner = winner && p.pool === winner.pool;
               return (
                 <tr
@@ -97,10 +102,15 @@ export default async function ProfitPage() {
                     <div className="font-semibold text-white">{p.poolName}</div>
                     <div className="text-xs text-slate-500">{p.pool.toUpperCase()}</div>
                   </td>
-                  <td className="px-3 py-2 text-right font-mono">{formatHashrate(p.hashrate1h)}</td>
+                  <td className="px-3 py-2 text-right font-mono">
+                    {p.connectedHashrate > 0 ? formatHashrate(p.connectedHashrate) : "—"}
+                  </td>
+                  <td className="px-3 py-2 text-right font-mono">
+                    {p.difficulty > 0 ? formatSI(p.difficulty, 2) : "—"}
+                  </td>
                   <td className="px-3 py-2 text-right font-mono">{formatHashrate(p.networkHashrate)}</td>
                   <td className="px-3 py-2 text-right font-mono">
-                    {share > 0 ? (share * 100).toExponential(2) + "%" : "—"}
+                    {p.share > 0 ? (p.share * 100).toExponential(2) + "%" : "—"}
                   </td>
                   <td className="px-3 py-2 text-right">
                     <span className="font-mono">{p.blockReward.toFixed(p.blockReward < 10 ? 3 : 1)}</span>
@@ -135,16 +145,22 @@ export default async function ProfitPage() {
 
       <div className="text-xs text-slate-500 border-t border-slate-800 pt-3 space-y-1">
         <div>
-          <strong>Formula:</strong>{" "}
-          <code>(your_hashrate / network_hashrate) × (86400 / block_time) × block_reward × price_usd</code>
+          <strong>*Your share</strong> and <strong>$/day</strong> assume your{" "}
+          <em>total</em> connected hashrate ({formatHashrate(totalHashrate)}) is pointed at that one coin —
+          that&apos;s the apples-to-apples comparison for deciding where to aim the rigs.
         </div>
         <div>
-          <strong>DGB network hash</strong> is the SHA-256d-only portion (DGB has 5 algos sharing a chain with
-          ~75s per-algo target). BTC/BCH are single-algo at 600s.
+          <strong>Formula:</strong>{" "}
+          <code>(total_hashrate × 86400 / (difficulty × 2³²)) × block_reward × price_usd</code>.
+          Expected blocks/day for SHA-256d depends only on hashrate and difficulty — block time cancels out.
+        </div>
+        <div>
+          <strong>DGB difficulty</strong> is the SHA-256d-only value (DGB has 5 algos sharing a chain with
+          ~75s per-algo target). BTC/BCH are single-algo at 600s. Network hashrate is derived from difficulty.
         </div>
         <div>
           <strong>Price source:</strong> CoinGecko free tier (cached 5 min). <strong>Rewards:</strong> current
-          coin schedule (BCH/BTC: 3.125 post-April-2024 halving; DGB: ~535).
+          coin schedule (BCH/BTC: 3.125 post-April-2024 halving; DGB: ~265.2).
         </div>
       </div>
     </div>

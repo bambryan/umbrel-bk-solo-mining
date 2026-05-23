@@ -2,7 +2,7 @@ manifestVersion: 1
 id: bk-mining-solo-mining
 category: bitcoin
 name: BK Solo Mining
-version: "0.2.1"
+version: "0.2.2"
 tagline: Solo mining for BCH, BTC, and DGB — full nodes + ckpool + dashboard
 icon: https://raw.githubusercontent.com/bambryan/umbrel-bk-solo-mining/main/bk-mining-solo-mining/icon.png
 description: >-
@@ -31,6 +31,15 @@ description: >-
   DGB `stratum+tcp://<umbrel-ip>:5678`.
   Use any address for that coin as the username.
 releaseNotes: >-
+  0.2.2 — Profit screen now compares coins apples-to-apples. It sums the
+  hashrate connected across every pool and runs that total against each
+  coin's difficulty, so BTC/BCH/DGB all show a real expected $/day even
+  when your rigs are currently pointed at just one of them — answering
+  "where should I aim everything?" instead of only scoring the pool that
+  happens to have miners on it. New Difficulty column; $/day uses the
+  SHA-256d formula (blocks/day = hashrate × 86400 / (difficulty × 2³²)).
+
+
   0.2.1 — Dashboard image now published to GHCR so `docker compose pull`
   resolves cleanly during Umbrel updates (0.2.0 referenced a
   locally-built tag that 404'd on the registry and tore the app down on
