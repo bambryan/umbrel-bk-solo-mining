@@ -108,6 +108,61 @@ export function getEnabledPools(): PoolDef[] {
   return getEnabledPoolIds().map(getPool);
 }
 
+// --- Stratum instances --------------------------------------------------
+// Each coin runs TWO ckpool instances (low-diff + high-diff) on separate
+// ports, sharing the same node + payout address. Public stats SUM across a
+// coin's instances; the admin manages each instance separately. The dashboard
+// mounts each instance's www + config at /pools/<coin>-<tier>/{www,config}.
+
+export type PoolTier = "low" | "high";
+
+export interface PoolInstance {
+  id: string;          // "bch-low" / "bch-high"
+  coin: PoolId;
+  tier: PoolTier;
+  label: string;       // "Low diff" / "High diff"
+  wwwDir: string;
+  configPath: string;
+  container: string;
+  stratumPort: number;
+}
+
+const INSTANCE_LAYOUT: Record<PoolId, Array<{ tier: PoolTier; port: number; container: string }>> = {
+  bch: [
+    { tier: "low", port: 4567, container: "bk-solo-mining_ckpool_1" },
+    { tier: "high", port: 4568, container: "bk-solo-mining_ckpool_hi_1" },
+  ],
+  btc: [
+    { tier: "low", port: 7890, container: "bk-solo-mining_btc_ckpool_1" },
+    { tier: "high", port: 7891, container: "bk-solo-mining_btc_ckpool_hi_1" },
+  ],
+  dgb: [
+    { tier: "low", port: 5678, container: "bk-solo-mining_dgb_ckpool_1" },
+    { tier: "high", port: 5679, container: "bk-solo-mining_dgb_ckpool_hi_1" },
+  ],
+};
+
+export function getInstances(coin: PoolId): PoolInstance[] {
+  return (INSTANCE_LAYOUT[coin] || []).map((i) => ({
+    id: `${coin}-${i.tier}`,
+    coin,
+    tier: i.tier,
+    label: i.tier === "low" ? "Low diff" : "High diff",
+    wwwDir: `/pools/${coin}-${i.tier}/www`,
+    configPath: `/pools/${coin}-${i.tier}/config/ckpool.conf`,
+    container: i.container,
+    stratumPort: i.port,
+  }));
+}
+
+export function getAllInstances(): PoolInstance[] {
+  return getEnabledPoolIds().flatMap(getInstances);
+}
+
+export function getInstance(id: string): PoolInstance | undefined {
+  return getAllInstances().find((i) => i.id === id);
+}
+
 // Parse pool id from a query param, defaulting to bch. Used by API routes
 // and pages that read `?pool=`.
 export function parsePoolId(raw: string | null | undefined): PoolId {

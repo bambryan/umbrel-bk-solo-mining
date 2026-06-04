@@ -1,6 +1,7 @@
 import { promises as fs } from "fs";
 import path from "path";
-import { getPool, type PoolId } from "./poolRegistry";
+import { getInstances, type PoolId } from "./poolRegistry";
+import { parseHashrate, formatHashrate } from "./format";
 
 export interface PoolStats {
   runtime: number;
@@ -82,45 +83,101 @@ async function readOrNull(p: string): Promise<string | null> {
   try { return await fs.readFile(p, "utf8"); } catch { return null; }
 }
 
-function wwwDir(pool: PoolId): string {
-  return getPool(pool).ckpoolWwwDir;
+// ckpool hashrate fields we sum when aggregating instances. PoolStats carries
+// more windows than UserStats/WorkerStats.
+const POOL_HR_KEYS = [
+  "hashrate1m", "hashrate5m", "hashrate15m", "hashrate1hr", "hashrate6hr", "hashrate1d", "hashrate7d",
+] as const;
+const USER_HR_KEYS = [
+  "hashrate1m", "hashrate5m", "hashrate1hr", "hashrate1d", "hashrate7d",
+] as const;
+
+function sumHr(values: (string | undefined)[]): string {
+  return formatHashrate(values.reduce((acc, v) => acc + (v ? parseHashrate(v) : 0), 0));
 }
 
-export async function getPoolStats(pool: PoolId = "bch"): Promise<PoolStats | null> {
-  const text = await readOrNull(path.join(wwwDir(pool), "pool", "pool.status"));
-  if (!text) return null;
-  return parseStats<PoolStats>(text);
+async function readInstancePoolStatus(dir: string): Promise<PoolStats | null> {
+  const text = await readOrNull(path.join(dir, "pool", "pool.status"));
+  return text ? parseStats<PoolStats>(text) : null;
 }
 
-export async function getUsers(pool: PoolId = "bch"): Promise<{ address: string; stats: UserStats }[]> {
-  const usersDir = path.join(wwwDir(pool), "users");
+async function readInstanceUsers(dir: string): Promise<{ address: string; stats: UserStats }[]> {
+  const usersDir = path.join(dir, "users");
   let entries: string[];
   try { entries = await fs.readdir(usersDir); } catch { return []; }
-  const results = [];
+  const out: { address: string; stats: UserStats }[] = [];
   for (const entry of entries) {
     if (entry.endsWith(".workers")) continue;
     const text = await readOrNull(path.join(usersDir, entry));
     if (!text) continue;
-    results.push({ address: entry, stats: parseStats<UserStats>(text) });
+    out.push({ address: entry, stats: parseStats<UserStats>(text) });
   }
-  return results;
+  return out;
 }
 
-export async function getWorkers(address: string, pool: PoolId = "bch"): Promise<WorkerStats[]> {
-  // Prefer the embedded worker[] array in the user file (newer ckpool builds).
-  // Fall back to the legacy <addr>.workers file if the embedded form is absent.
-  const userText = await readOrNull(path.join(wwwDir(pool), "users", address));
-  if (userText) {
-    const stats = parseStats<UserStats>(userText);
-    if (Array.isArray(stats.worker)) return stats.worker;
+// PUBLIC: pool stats for a coin = SUM across its low + high ckpool instances.
+export async function getPoolStats(pool: PoolId = "bch"): Promise<PoolStats | null> {
+  const parts = (
+    await Promise.all(getInstances(pool).map((i) => readInstancePoolStatus(i.wwwDir)))
+  ).filter((p): p is PoolStats => p !== null);
+  if (parts.length === 0) return null;
+
+  const sum = (k: keyof PoolStats) => parts.reduce((a, p) => a + (Number(p[k]) || 0), 0);
+  const max = (k: keyof PoolStats) => parts.reduce((a, p) => Math.max(a, Number(p[k]) || 0), 0);
+  const agg = { ...parts[0] } as PoolStats;
+  for (const k of POOL_HR_KEYS) (agg as unknown as Record<string, unknown>)[k] = sumHr(parts.map((p) => p[k] as string));
+  agg.Users = sum("Users");
+  agg.Workers = sum("Workers");
+  agg.Idle = sum("Idle");
+  agg.Disconnected = sum("Disconnected");
+  agg.accepted = sum("accepted");
+  agg.rejected = sum("rejected");
+  agg.SPS1m = sum("SPS1m"); agg.SPS5m = sum("SPS5m"); agg.SPS15m = sum("SPS15m"); agg.SPS1h = sum("SPS1h");
+  agg.bestshare = max("bestshare");
+  agg.lastupdate = max("lastupdate");
+  agg.runtime = max("runtime");
+  // diff is the network diff — identical across instances of the same coin.
+  agg.diff = parts.find((p) => Number(p.diff) > 0)?.diff ?? parts[0].diff;
+  return agg;
+}
+
+// PUBLIC: per-address user stats merged across a coin's instances (the same
+// address mining on both the low and high port becomes one combined row).
+export async function getUsers(pool: PoolId = "bch"): Promise<{ address: string; stats: UserStats }[]> {
+  const lists = await Promise.all(getInstances(pool).map((i) => readInstanceUsers(i.wwwDir)));
+  const merged = new Map<string, UserStats>();
+  for (const list of lists) {
+    for (const { address, stats } of list) {
+      const cur = merged.get(address);
+      if (!cur) { merged.set(address, { ...stats, worker: stats.worker ? [...stats.worker] : undefined }); continue; }
+      for (const k of USER_HR_KEYS) (cur as unknown as Record<string, unknown>)[k] = sumHr([cur[k] as string, stats[k] as string]);
+      cur.workers = (cur.workers || 0) + (stats.workers || 0);
+      cur.shares = (cur.shares || 0) + (stats.shares || 0);
+      cur.bestever = Math.max(cur.bestever || 0, stats.bestever || 0);
+      cur.bestshare = Math.max(cur.bestshare || 0, stats.bestshare || 0);
+      cur.lastshare = Math.max(cur.lastshare || 0, stats.lastshare || 0);
+      if (Array.isArray(stats.worker)) cur.worker = [...(cur.worker || []), ...stats.worker];
+    }
   }
-  const text = await readOrNull(path.join(wwwDir(pool), "users", `${address}.workers`));
-  if (!text) return [];
+  return [...merged.entries()].map(([address, stats]) => ({ address, stats }));
+}
+
+// Workers for an address across ALL of a coin's instances (low + high).
+export async function getWorkers(address: string, pool: PoolId = "bch"): Promise<WorkerStats[]> {
   const out: WorkerStats[] = [];
-  for (const line of text.split(/\r?\n/)) {
-    const s = line.trim();
-    if (!s) continue;
-    try { out.push(JSON.parse(s) as WorkerStats); } catch { /* skip */ }
+  for (const i of getInstances(pool)) {
+    const userText = await readOrNull(path.join(i.wwwDir, "users", address));
+    if (userText) {
+      const stats = parseStats<UserStats>(userText);
+      if (Array.isArray(stats.worker)) { out.push(...stats.worker); continue; }
+    }
+    const text = await readOrNull(path.join(i.wwwDir, "users", `${address}.workers`));
+    if (!text) continue;
+    for (const line of text.split(/\r?\n/)) {
+      const s = line.trim();
+      if (!s) continue;
+      try { out.push(JSON.parse(s) as WorkerStats); } catch { /* skip */ }
+    }
   }
   return out;
 }
