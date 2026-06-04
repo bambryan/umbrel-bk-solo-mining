@@ -25,9 +25,13 @@ export function ConnectionBanner() {
     setPort(null);
     fetch(`/api/stratum?pool=${pool}`, { cache: "no-store" })
       .then((r) => r.json())
-      .then((d: { port: number; displayName?: string }) => {
+      .then((d: { port: number; displayName?: string; host?: string | null }) => {
         setPort(d.port);
         setDisplayName(d.displayName || pool.toUpperCase());
+        // Prefer the server-configured public stratum host (STRATUM_PUBLIC_HOST)
+        // over the browser location host — needed when the dashboard and stratum
+        // live on different hostnames (pool-web.* vs pool.*).
+        if (d.host) setHost(d.host);
       })
       .catch(() => setPort(null));
   }, [pool]);
