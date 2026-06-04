@@ -56,7 +56,7 @@ export default async function AdminPage({ searchParams }: PageProps) {
           </p>
         </header>
         {settings ? (
-          <PoolSettingsForm initial={settings} instanceId={selected.id} coin={selected.coin} />
+          <PoolSettingsForm key={selected.id} initial={settings} instanceId={selected.id} coin={selected.coin} />
         ) : (
           <p className="text-sm text-slate-400">
             {selected.id} ckpool config not found yet — start the instance first.
