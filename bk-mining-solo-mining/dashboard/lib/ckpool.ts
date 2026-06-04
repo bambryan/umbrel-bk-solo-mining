@@ -1,7 +1,7 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { getInstances, type PoolId } from "./poolRegistry";
-import { parseHashrate, formatHashrate } from "./format";
+import { parseHashrate, formatSI } from "./format";
 
 export interface PoolStats {
   runtime: number;
@@ -92,8 +92,11 @@ const USER_HR_KEYS = [
   "hashrate1m", "hashrate5m", "hashrate1hr", "hashrate1d", "hashrate7d",
 ] as const;
 
+// Sum ckpool hashrate strings ("572T", "5.25P") and emit in ckpool's own SI
+// style ("760.0T") — NOT "760 TH/s" — so the frontend's parseHashrate (which
+// only accepts <num><K|M|G|T|P|E>) can re-parse the aggregated value.
 function sumHr(values: (string | undefined)[]): string {
-  return formatHashrate(values.reduce((acc, v) => acc + (v ? parseHashrate(v) : 0), 0));
+  return formatSI(values.reduce((acc, v) => acc + (v ? parseHashrate(v) : 0), 0));
 }
 
 async function readInstancePoolStatus(dir: string): Promise<PoolStats | null> {
