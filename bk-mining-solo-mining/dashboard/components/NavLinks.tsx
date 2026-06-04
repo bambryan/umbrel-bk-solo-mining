@@ -11,7 +11,8 @@ const LINKS: LinkDef[] = [
   { href: "/workers", label: "Workers" },
   { href: "/blocks", label: "Blocks" },
   { href: "/profit", label: "Profit" },
-  { href: "/admin", label: "Admin" },
+  // Admin is intentionally not linked here — it's reachable only by direct URL
+  // and gated by Basic Auth (see middleware.ts).
 ];
 
 // Header nav. Preserves the current `?pool=` (and any other) query params so
