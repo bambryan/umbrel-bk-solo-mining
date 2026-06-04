@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { type PoolSettings, VARDIFF_PRESETS } from "@/lib/poolSettings.types";
 
-type Props = { initial: PoolSettings; pool: "bch" | "btc" | "dgb" };
+type Props = { initial: PoolSettings; instanceId: string; coin: "bch" | "btc" | "dgb" };
 
 const PRESET_NAMES = Object.keys(VARDIFF_PRESETS);
 const CUSTOM = "Custom";
@@ -23,7 +23,7 @@ function detectPreset(p: PoolSettings): string {
 // number just overwrites the old one.
 type DiffKey = "mindiff" | "startdiff" | "maxdiff";
 
-export function PoolSettingsForm({ initial, pool }: Props) {
+export function PoolSettingsForm({ initial, instanceId, coin }: Props) {
   const [s, setS] = useState<PoolSettings>(initial);
   const [diffText, setDiffText] = useState({
     mindiff: String(initial.mindiff),
@@ -71,7 +71,7 @@ export function PoolSettingsForm({ initial, pool }: Props) {
         startdiff: Math.max(0, parseInt(diffText.startdiff, 10) || 0),
         maxdiff: Math.max(0, parseInt(diffText.maxdiff, 10) || 0),
       };
-      const res = await fetch(`/api/pool-settings?pool=${pool}`, {
+      const res = await fetch(`/api/pool-settings?instance=${instanceId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -94,9 +94,9 @@ export function PoolSettingsForm({ initial, pool }: Props) {
           onChange={(e) => update("btcaddress", e.target.value.trim())}
           className="w-full rounded-md bg-slate-950 border border-slate-700 px-3 py-2 font-mono text-sm focus:outline-none focus:ring-1 focus:ring-amber-500"
           placeholder={
-            pool === "btc"
+            coin === "btc"
               ? "1… or 3… or bc1…"
-              : pool === "dgb"
+              : coin === "dgb"
               ? "D… or S… or dgb1…"
               : "1… or 3… or bitcoincash:…"
           }
@@ -105,9 +105,9 @@ export function PoolSettingsForm({ initial, pool }: Props) {
           Default coinbase address when{" "}
           <span className="text-slate-300">Use miner username</span>{" "}
           is off (or when a miner connects without a valid address).{" "}
-          {pool === "btc"
+          {coin === "btc"
             ? "Legacy (1…/3…) and bech32 (bc1…) accepted."
-            : pool === "dgb"
+            : coin === "dgb"
             ? "Legacy (D…/S…) and bech32 (dgb1…) accepted."
             : "Legacy (1…/3…) and CashAddr (q…/p…) accepted."}
         </p>

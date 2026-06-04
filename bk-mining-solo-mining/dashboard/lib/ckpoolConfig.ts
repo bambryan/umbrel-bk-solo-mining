@@ -1,6 +1,6 @@
 import { promises as fs } from "fs";
 import path from "path";
-import { getPool, type PoolId } from "./poolRegistry";
+import { getInstance, type PoolId } from "./poolRegistry";
 
 // Client-safe types + presets live in their own file so client components
 // can import them without dragging fs/path into the browser bundle.
@@ -16,39 +16,44 @@ export interface CkpoolConfig {
   [k: string]: unknown;
 }
 
-function configPath(pool: PoolId): string {
-  return getPool(pool).ckpoolConfigPath;
+// All config read/write is now per-INSTANCE (e.g. "bch-low", "bch-high") so
+// each ckpool can be tuned separately. The instance resolves to its own
+// ckpool.conf path + sentinel dir.
+function configPath(instanceId: string): string {
+  const inst = getInstance(instanceId);
+  if (!inst) throw new Error(`Unknown stratum instance: ${instanceId}`);
+  return inst.configPath;
 }
 
-function sentinelPath(pool: PoolId, name: string): string {
-  return path.join(path.dirname(configPath(pool)), name);
+function sentinelPath(instanceId: string, name: string): string {
+  return path.join(path.dirname(configPath(instanceId)), name);
 }
 
 const SENTINEL_USE_MINER_USERNAME = "_use_miner_username";
 
-export async function readConfig(pool: PoolId = "bch"): Promise<CkpoolConfig> {
-  const text = await fs.readFile(configPath(pool), "utf8");
+export async function readConfig(instanceId: string): Promise<CkpoolConfig> {
+  const text = await fs.readFile(configPath(instanceId), "utf8");
   return JSON.parse(text);
 }
 
-export async function writeConfig(patch: Partial<CkpoolConfig>, pool: PoolId = "bch"): Promise<CkpoolConfig> {
-  const current = await readConfig(pool);
+export async function writeConfig(patch: Partial<CkpoolConfig>, instanceId: string): Promise<CkpoolConfig> {
+  const current = await readConfig(instanceId);
   const next = { ...current, ...patch };
-  await fs.writeFile(configPath(pool), JSON.stringify(next, null, 2) + "\n", "utf8");
+  await fs.writeFile(configPath(instanceId), JSON.stringify(next, null, 2) + "\n", "utf8");
   return next;
 }
 
-export async function getUseMinerUsername(pool: PoolId = "bch"): Promise<boolean> {
+export async function getUseMinerUsername(instanceId: string): Promise<boolean> {
   try {
-    await fs.access(sentinelPath(pool, SENTINEL_USE_MINER_USERNAME));
+    await fs.access(sentinelPath(instanceId, SENTINEL_USE_MINER_USERNAME));
     return true;
   } catch {
     return false;
   }
 }
 
-export async function setUseMinerUsername(on: boolean, pool: PoolId = "bch"): Promise<void> {
-  const p = sentinelPath(pool, SENTINEL_USE_MINER_USERNAME);
+export async function setUseMinerUsername(on: boolean, instanceId: string): Promise<void> {
+  const p = sentinelPath(instanceId, SENTINEL_USE_MINER_USERNAME);
   if (on) {
     await fs.writeFile(p, "", "utf8");
   } else {
@@ -56,9 +61,9 @@ export async function setUseMinerUsername(on: boolean, pool: PoolId = "bch"): Pr
   }
 }
 
-export async function getPoolSettings(pool: PoolId = "bch"): Promise<PoolSettings> {
-  const cfg = await readConfig(pool);
-  const useMinerUsername = await getUseMinerUsername(pool);
+export async function getPoolSettings(instanceId: string): Promise<PoolSettings> {
+  const cfg = await readConfig(instanceId);
+  const useMinerUsername = await getUseMinerUsername(instanceId);
   return {
     btcaddress: cfg.btcaddress,
     btcsig: cfg.btcsig,

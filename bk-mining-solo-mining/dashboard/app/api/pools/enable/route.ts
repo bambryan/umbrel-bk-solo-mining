@@ -24,7 +24,7 @@ export async function POST(req: Request) {
   if (!v.ok) return new NextResponse(v.error ?? "Invalid", { status: 400 });
 
   try {
-    await writeConfig({ btcaddress: body.btcaddress!, ...(body.btcsig ? { btcsig: body.btcsig } : {}) }, pool);
+    await writeConfig({ btcaddress: body.btcaddress!, ...(body.btcsig ? { btcsig: body.btcsig } : {}) }, `${pool}-low`);
   } catch (e) {
     return new NextResponse(
       `Write ckpool.conf failed: ${e instanceof Error ? e.message : String(e)}`,

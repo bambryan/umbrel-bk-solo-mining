@@ -52,7 +52,7 @@ async function autoInitFromExistingConfig(): Promise<State> {
   const enabled: PoolId[] = [];
   for (const pool of ALL_POOLS) {
     try {
-      const cfg = await readConfig(pool);
+      const cfg = await readConfig(`${pool}-low`);
       if (cfg.btcaddress && !cfg.btcaddress.startsWith("CHANGE_ME")) {
         enabled.push(pool);
       }

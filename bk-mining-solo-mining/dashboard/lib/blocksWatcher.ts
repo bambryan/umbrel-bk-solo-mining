@@ -115,7 +115,7 @@ async function rpc<T>(pool: PoolId, method: string, params: unknown[] = []): Pro
 async function verifyChainForPool(pool: PoolId, lookback = 20): Promise<number> {
   let payoutAddress: string;
   try {
-    const cfg = await readConfig(pool);
+    const cfg = await readConfig(`${pool}-low`);
     payoutAddress = cfg.btcaddress;
   } catch { return 0; }
   if (!payoutAddress || payoutAddress.startsWith("CHANGE_ME")) return 0;

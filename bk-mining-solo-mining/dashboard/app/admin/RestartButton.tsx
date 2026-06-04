@@ -1,30 +1,40 @@
 "use client";
 
 import { useState } from "react";
-import { useSearchParams } from "next/navigation";
 
-// `node` covers bchn (BCH) and bitcoind (BTC); the API resolves it per-pool.
+// `ckpool` targets a single stratum instance (instanceId); `node` targets a
+// coin's shared node (pool).
 type Service = "ckpool" | "node";
 
-export function RestartButton({ service, label }: { service: Service; label?: string }) {
-  const params = useSearchParams();
-  const pool = params.get("pool") || "bch";
+export function RestartButton({
+  service,
+  instanceId,
+  pool,
+  label,
+}: {
+  service: Service;
+  instanceId?: string;
+  pool?: string;
+  label?: string;
+}) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
-  const display = label ?? (service === "ckpool"
-    ? `${pool.toUpperCase()} ckpool`
-    : (pool === "btc" ? "bitcoind" : "bchn"));
+  const display = label ?? (service === "ckpool" ? `${instanceId} ckpool` : "node");
 
   async function onClick() {
     if (!confirm(`Restart ${display}?`)) return;
     setBusy(true);
     setMsg(null);
     try {
+      const body =
+        service === "ckpool"
+          ? { service, instance: instanceId }
+          : { service, pool };
       const res = await fetch("/api/restart", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ service, pool }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error(await res.text());
       setMsg("Restarted.");
